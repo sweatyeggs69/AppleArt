@@ -1,13 +1,13 @@
-# [<img src="AppleArt/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://artwork.m8tec.top) Apple Music Animated Artworks
+# [<img src="AppleArt/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://aaaa.tromme.app) AppleArt
 
-[![Website](https://img.shields.io/badge/Public_Instance-blue?style=for-the-badge)](https://artwork.m8tec.top)
+[![Website](https://img.shields.io/badge/Public_Instance-blue?style=for-the-badge)](https://aaaa.tromme.app)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/sweatyeggs69/AppleArt/docker-publish.yml?style=for-the-badge)](https://github.com/sweatyeggs69/AppleArt/actions)
 
 <div align="center">
 
 <img src=".github/assets/preview.png">
 
-A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8). Supports both square and tall cover variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend.
+A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8). Supports both square and tall cover variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend. Powers animated artwork in [Tromme](https://github.com/sweatyeggs69/Tromme). Based on [m8tec/apple-music-animated-artworks](https://github.com/m8tec/apple-music-animated-artworks).
 
 <table align="center" style="margin-top: 16px; width: 70%;">
 	<tr>
@@ -24,7 +24,7 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 	</tr>
 </table>
 
-**Test it out:** [https://artwork.m8tec.top](https://artwork.m8tec.top)
+**Test it out:** [https://aaaa.tromme.app](https://aaaa.tromme.app)
 
 </div>
 
@@ -45,6 +45,7 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 ## Getting Started
 
 ### Run with Docker
+The image is published to Docker Hub by GitHub Actions on every push to `main`.
 ```bash
 git clone https://github.com/sweatyeggs69/AppleArt.git
 cd AppleArt
@@ -61,13 +62,13 @@ docker compose -f compose.yaml -f compose.dev.yaml up -d --build
 ### Build locally without Docker (.NET 10 required)
 ```bash
 git clone https://github.com/sweatyeggs69/AppleArt.git
-cd AppleArt
+cd AppleArt/AppleArt
 dotnet run
 ```
 
 ## API Reference
 
-Base URL: https://artwork.m8tec.top
+Base URL: https://aaaa.tromme.app
 
 **Get Artwork by Details**
 
@@ -83,7 +84,7 @@ Base URL: https://artwork.m8tec.top
 
 ## Caching Strategy
 This project is designed to be "Apple-friendly" to avoid rate limits:
-1. **Fuzzy Matching:** The cache uses normalized two-way substring matching. Searching for base albums automatically resolves cached "Deluxe" or "Remastered" editions.
+1. **Edition Matching:** Searches pick the closest album title, so an exact match beats editions such as "Deluxe" or "Anniversary". Cached lookups match the normalized album name exactly.
 2. Negative Artwork Caching: Albums that are confirmed to have no animated artwork are cached as NONE to prevent repeated futile scraping.
 3. Negative Search Caching: If a search query returns no matches, that result is cached to avoid repeated searches for the same non-existent album.
 
