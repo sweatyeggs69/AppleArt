@@ -76,6 +76,22 @@ public sealed class SqliteDatabase
             ) WITHOUT ROWID;
             """;
         command.ExecuteNonQuery();
+
+        PurgeStaleMetadataResolutions(connection);
+    }
+
+    // v1: resolutions saved by the old substring search could point at the wrong edition
+    // or be a false no-match. Clear them once; artwork rows are keyed by URL and stay valid.
+    private static void PurgeStaleMetadataResolutions(SqliteConnection connection)
+    {
+        using var versionCommand = connection.CreateCommand();
+        versionCommand.CommandText = "PRAGMA user_version;";
+        long version = Convert.ToInt64(versionCommand.ExecuteScalar());
+        if (version >= 1) return;
+
+        using var purge = connection.CreateCommand();
+        purge.CommandText = "DELETE FROM metadata_resolutions; PRAGMA user_version = 1;";
+        purge.ExecuteNonQuery();
     }
 
     public void MarkInitialized() => _isInitialized = true;

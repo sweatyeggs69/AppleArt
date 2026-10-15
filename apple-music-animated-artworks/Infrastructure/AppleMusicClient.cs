@@ -79,18 +79,34 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
 
             MatchCollection matches = AppleMusicLinkRegex().Matches(htmlContent);
 
+            // Take the closest edition, not the first hit: an exact title beats "The Encore" or
+            // "30th Anniversary" variants that merely contain the requested name.
+            string? bestUrl = null;
+            int bestRank = int.MaxValue;
+
             foreach (Match match in matches)
             {
                 string foundUrl = match.Groups[1].Value;
                 string foundAlbumSlug = Uri.UnescapeDataString(match.Groups[2].Value).Replace('-', ' ');
 
-                if (ContainsAlbumName(foundAlbumSlug, album))
+                int rank = RankAlbumMatch(foundAlbumSlug, album);
+                if (rank < 0)
                 {
-                    Log.Debug("Found matching album: {Url} for query: {Query}", foundUrl, query);
-                    return new(AppleMusicWebSearchStatus.Found, foundUrl);
+                    Log.Debug("Rejected non-matching album hit. Requested: {RequestedAlbum}, Found: {FoundAlbum}, Url: {Url}", album, foundAlbumSlug, foundUrl);
+                    continue;
                 }
 
-                Log.Debug("Rejected non-matching album hit. Requested: {RequestedAlbum}, Found: {FoundAlbum}, Url: {Url}", album, foundAlbumSlug, foundUrl);
+                if (rank < bestRank)
+                {
+                    bestRank = rank;
+                    bestUrl = foundUrl;
+                }
+            }
+
+            if (bestUrl != null)
+            {
+                Log.Debug("Found matching album: {Url} (extra words: {Rank}) for query: {Query}", bestUrl, bestRank, query);
+                return new(AppleMusicWebSearchStatus.Found, bestUrl);
             }
 
             Log.Debug("Found no matching album links in HTML for query: {Query}", query);
@@ -107,22 +123,38 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         }
     }
 
-    private static bool ContainsAlbumName(string foundAlbumName, string requestedAlbumName)
+    /// <summary>
+    /// -1 when the found album does not contain the requested name as whole words, otherwise the
+    /// number of extra words (0 = exact title). Lower is closer.
+    /// </summary>
+    private static int RankAlbumMatch(string foundAlbumName, string requestedAlbumName)
     {
-        string normalizedFound = NormalizeForComparison(foundAlbumName);
-        string normalizedRequested = NormalizeForComparison(requestedAlbumName);
+        string found = NormalizeForComparison(foundAlbumName);
+        string requested = NormalizeForComparison(requestedAlbumName);
 
-        if (string.IsNullOrWhiteSpace(normalizedFound) || string.IsNullOrWhiteSpace(normalizedRequested))
+        if (found.Length == 0 || requested.Length == 0)
         {
-            return false;
+            return -1;
         }
 
-        return normalizedFound.Contains(normalizedRequested, StringComparison.Ordinal);
+        if (found == requested)
+        {
+            return 0;
+        }
+
+        if (!$" {found} ".Contains($" {requested} ", StringComparison.Ordinal))
+        {
+            return -1;
+        }
+
+        return found.Split(' ').Length - requested.Split(' ').Length;
     }
 
     private static string NormalizeForComparison(string input)
     {
-        string normalized = input.Trim().ToLowerInvariant();
+        // Apostrophes vanish instead of splitting words, so "Taylor's" matches Apple's slug "taylors".
+        string normalized = input.Trim().ToLowerInvariant()
+            .Replace("'", "").Replace("\u2019", "").Replace("\u2018", "").Replace("\u02BC", "");
         normalized = NonAlphanumericRegex().Replace(normalized, " ");
         normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
         return normalized;

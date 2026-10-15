@@ -44,9 +44,8 @@ public sealed class ArtworkCache(SqliteDatabase database)
                 SELECT apple_music_url
                 FROM artworks
                 WHERE (instr(normalized_artist, $artist) > 0 OR instr($artist, normalized_artist) > 0)
-                  AND (instr(normalized_album, $album) > 0 OR instr($album, normalized_album) > 0)
-                -- prefer existing m3u8-urls, then shorter album names, as they are more likely to be the
-                -- original release instead of a special edition (e.g. "A Cappella Super Deluxe Version")
+                  AND normalized_album = $album
+                -- exact album only: a substring match returned other editions (Encore, anniversary)
                 ORDER BY is_animated DESC, length(album)
                 LIMIT 1
             )
