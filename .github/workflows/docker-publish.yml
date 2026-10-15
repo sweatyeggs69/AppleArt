@@ -3,6 +3,12 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - "README.md"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/assets/**"
+      - "compose*.yaml"
   workflow_dispatch:
 
 env:
