@@ -7,7 +7,7 @@
 
 <img src=".github/assets/preview.png">
 
-A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8). Supports both square and tall cover variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend. Powers animated artwork in [Tromme](https://github.com/sweatyeggs69/Tromme). Based on [m8tec/apple-music-animated-artworks](https://github.com/m8tec/apple-music-animated-artworks).
+A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8). Supports both square and tall cover variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend. Powers animated artwork in [Tromme](https://github.com/sweatyeggs69/Tromme).
 
 **Test it out:** [https://amaa.tromme.app](https://amaa.tromme.app)
 
