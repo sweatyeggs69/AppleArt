@@ -1,7 +1,7 @@
-# [<img src="apple-music-animated-artworks/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://artwork.m8tec.top) Apple Music Animated Artworks
+# [<img src="AppleArt/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://artwork.m8tec.top) Apple Music Animated Artworks
 
 [![Website](https://img.shields.io/badge/Public_Instance-blue?style=for-the-badge)](https://artwork.m8tec.top)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/m8tec/apple-music-animated-artworks/docker-publish.yml?style=for-the-badge)](https://github.com/m8tec/apple-music-animated-artworks/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/sweatyeggs69/AppleArt/docker-publish.yml?style=for-the-badge)](https://github.com/sweatyeggs69/AppleArt/actions)
 
 <div align="center">
 
@@ -46,22 +46,22 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 
 ### Run with Docker
 ```bash
-git clone https://github.com/m8tec/apple-music-animated-artworks.git
-cd apple-music-animated-artworks
+git clone https://github.com/sweatyeggs69/AppleArt.git
+cd AppleArt
 docker compose up -d
 ```
 
 ### Build locally with Docker
 ```bash
-git clone https://github.com/m8tec/apple-music-animated-artworks.git
-cd apple-music-animated-artworks
+git clone https://github.com/sweatyeggs69/AppleArt.git
+cd AppleArt
 docker compose -f compose.yaml -f compose.dev.yaml up -d --build
 ```
 
 ### Build locally without Docker (.NET 10 required)
 ```bash
-git clone https://github.com/m8tec/apple-music-animated-artworks.git
-cd apple-music-animated-artworks
+git clone https://github.com/sweatyeggs69/AppleArt.git
+cd AppleArt
 dotnet run
 ```
 

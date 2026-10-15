@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/apple-music-animated-artworks
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/appleart
 
 jobs:
   build-and-push:
@@ -42,7 +42,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./apple-music-animated-artworks
+          context: ./AppleArt
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

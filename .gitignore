@@ -8,8 +8,8 @@
 
 **/data/**
 
-apple-music-animated-artworks/cache_database.json
-apple-music-animated-artworks/cache_database.json.bak
-apple-music-animated-artworks/metadata_resolution_cache.json
-apple-music-animated-artworks/metadata_resolution_cache.json.bak
-apple-music-animated-artworks/cache.db*
+AppleArt/cache_database.json
+AppleArt/cache_database.json.bak
+AppleArt/metadata_resolution_cache.json
+AppleArt/metadata_resolution_cache.json.bak
+AppleArt/cache.db*

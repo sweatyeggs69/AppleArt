@@ -1,8 +1,8 @@
 services:
-  animated-artworks:
+  appleart:
     build:
-      context: ./apple-music-animated-artworks
+      context: ./AppleArt
       dockerfile: Dockerfile
-    image: apple-music-animated-artworks:local-dev
+    image: appleart:local-dev
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
