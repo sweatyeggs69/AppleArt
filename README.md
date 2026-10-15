@@ -9,21 +9,6 @@
 
 A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8). Supports both square and tall cover variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend. Powers animated artwork in [Tromme](https://github.com/sweatyeggs69/Tromme). Based on [m8tec/apple-music-animated-artworks](https://github.com/m8tec/apple-music-animated-artworks).
 
-<table align="center" style="margin-top: 16px; width: 70%;">
-	<tr>
-		<td align="center" width="50%"><strong>Square Cover</strong></td>
-		<td align="center" width="50%"><strong>Tall Cover</strong></td>
-	</tr>
-	<tr>
-		<td align="center">
-			<img src=".github/assets/living_things_artwork_square.gif" alt="Square cover preview" style="max-width: 100%; border-radius: 8px;">
-		</td>
-		<td align="center">
-			<img src=".github/assets/plastic_beach_deluxe_version_artwork_tall.gif" alt="Tall cover preview" style="max-width: 100%; border-radius: 8px;">
-		</td>
-	</tr>
-</table>
-
 **Test it out:** [https://amaa.tromme.app](https://amaa.tromme.app)
 
 </div>
@@ -36,35 +21,6 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 - API: Provides a simple REST API for programmatic access to the artwork data.
 - Cache: Saves results in local cache files. It only hits Apple's servers once per album.
 - Web Player: Simple UI using hls.js to play the animated covers in any browser (not just Safari).
-
-## Tech Stack
-- Backend: .NET 10 (Minimal APIs, HttpClient, Regex for parsing)
-- Frontend: Plain JS, Tailwind CSS, Hls.js
-- Storage: SQLite database (existing JSON cache files are imported automatically on first start)
-
-## Getting Started
-
-### Run with Docker
-The image is published to Docker Hub by GitHub Actions on every push to `main`.
-```bash
-git clone https://github.com/sweatyeggs69/AppleArt.git
-cd AppleArt
-docker compose up -d
-```
-
-### Build locally with Docker
-```bash
-git clone https://github.com/sweatyeggs69/AppleArt.git
-cd AppleArt
-docker compose -f compose.yaml -f compose.dev.yaml up -d --build
-```
-
-### Build locally without Docker (.NET 10 required)
-```bash
-git clone https://github.com/sweatyeggs69/AppleArt.git
-cd AppleArt/AppleArt
-dotnet run
-```
 
 ## API Reference
 
