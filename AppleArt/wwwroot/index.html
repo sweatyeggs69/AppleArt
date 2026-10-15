@@ -26,7 +26,9 @@
 </head>
 <body class="min-h-screen flex flex-col items-center p-4 bg-[#121212] text-white selection:bg-pink-500 selection:text-white">
 
-<div class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-md z-10 mt-10">
+<div class="w-full max-w-5xl flex flex-col lg:flex-row lg:items-start lg:justify-center gap-6 mt-10 z-10">
+
+<div class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-md">
     <h1 class="text-3xl font-bold mb-2 text-center text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-400">
         Artwork Downloader
     </h1>
@@ -80,7 +82,9 @@
     </form>
 
     <div id="statusMessage" class="mt-4 text-center text-sm hidden"></div>
+</div>
 
+<div id="resultsPanel" class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-md">
     <div id="artworkMetadata" class="mt-6 mb-2 hidden flex flex-col gap-3 bg-gray-900/60 p-3 rounded-lg border border-gray-700/50 shadow-inner">
         <div class="flex items-center justify-between">
             <div class="truncate pr-2">
@@ -154,6 +158,8 @@
         <video id="artworkVideo" class="w-full h-full object-cover" autoplay loop muted playsinline></video>
     </div>
     <a id="rawLink" href="#" target="_blank" class="block mt-4 text-xs text-center text-pink-400 hover:text-pink-300 hidden truncate transition-colors"></a>
+</div>
+
 </div>
 
 <div id="historyContainer" class="w-full max-w-5xl mt-8 hidden">
