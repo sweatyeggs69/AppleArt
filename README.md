@@ -1,6 +1,6 @@
-# [<img src="AppleArt/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://aaaa.tromme.app) AppleArt
+# [<img src="AppleArt/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://amaa.tromme.app) AppleArt
 
-[![Website](https://img.shields.io/badge/Public_Instance-blue?style=for-the-badge)](https://aaaa.tromme.app)
+[![Website](https://img.shields.io/badge/Public_Instance-blue?style=for-the-badge)](https://amaa.tromme.app)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/sweatyeggs69/AppleArt/docker-publish.yml?style=for-the-badge)](https://github.com/sweatyeggs69/AppleArt/actions)
 
 <div align="center">
@@ -24,7 +24,7 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 	</tr>
 </table>
 
-**Test it out:** [https://aaaa.tromme.app](https://aaaa.tromme.app)
+**Test it out:** [https://amaa.tromme.app](https://amaa.tromme.app)
 
 </div>
 
@@ -68,7 +68,7 @@ dotnet run
 
 ## API Reference
 
-Base URL: https://aaaa.tromme.app
+Base URL: https://amaa.tromme.app
 
 **Get Artwork by Details**
 
