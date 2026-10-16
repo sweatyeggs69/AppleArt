@@ -57,21 +57,6 @@ public sealed class ArtworkCache(SqliteDatabase database)
         return reader.Read() ? ReadEntry(reader) : null;
     }
 
-    public void IncrementDownloadCount(string m3U8Url)
-    {
-        using var connection = database.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            UPDATE artworks
-            SET download_count = download_count + 1
-            WHERE apple_music_url = (
-                SELECT apple_music_url FROM artworks WHERE is_animated = 1 AND m3u8_url = $url LIMIT 1
-            )
-            """;
-        command.Parameters.AddWithValue("$url", m3U8Url);
-        command.ExecuteNonQuery();
-    }
-
     public void IncrementSearchCount(ArtworkCacheEntry cacheEntry)
     {
         using var connection = database.OpenConnection();

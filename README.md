@@ -16,11 +16,10 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 ## What it does
 - Search: Accepts artist and album names, or Apple Music URLs, to find the corresponding animated artwork.
 - Scraping: Pulls the .m3u8 stream URLs directly from Apple Music.
-- Download: Allows in-browser preview and download of the animated covers.
 - Multiple Variants: Supports both the standard square cover and the taller variant used for lock screen & expanded artwork views.
 - API: Provides a simple REST API for programmatic access to the artwork data.
 - Cache: Saves results in local cache files. It only hits Apple's servers once per album.
-- Web Player: Simple UI using hls.js to play the animated covers in any browser (not just Safari).
+- Web UI: Minimal page for manually searching and previewing artwork (hls.js), meant for debugging.
 
 ## API Reference
 

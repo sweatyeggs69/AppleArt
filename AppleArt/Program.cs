@@ -261,20 +261,6 @@ try
         return Results.NotFound(new { message = "No animated artwork found." });
     }).RequireRateLimiting("ApiRateLimit");
     
-    app.MapPost("/api/v1/artwork/download", (
-        DownloadReportRequest req, 
-        ArtworkCache cacheService,
-        HttpResponse response) => 
-    {
-        response.Headers.CacheControl = "public, max-age=86400";
-        if (string.IsNullOrWhiteSpace(req.M3U8Url))
-            return Results.BadRequest();
-
-        cacheService.IncrementDownloadCount(req.M3U8Url);
-        
-        return Results.Ok();
-    }).RequireRateLimiting("ApiRateLimit");
-
     app.MapGet("/api/v1/artwork/history", (HttpResponse response, [FromServices] ArtworkCache cache) =>
     {
         response.Headers.CacheControl = "public, max-age=86400";
@@ -301,4 +287,3 @@ finally
     Log.CloseAndFlush();
 }
 
-public record DownloadReportRequest(string M3U8Url);
