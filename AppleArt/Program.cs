@@ -198,7 +198,7 @@ try
         HttpResponse response,
         CancellationToken ct) =>
     {
-        response.Headers.CacheControl = "public, max-age=86400";
+        response.Headers.CacheControl = "no-cache";
         logger.LogInformation("Incoming Request: Metadata Search -> Artist: {Artist}, Album: {Album}, Title: {Title}", 
             artist, album, title ?? "N/A");
         
