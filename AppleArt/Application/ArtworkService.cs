@@ -21,6 +21,10 @@ public partial class ArtworkService(
     [GeneratedRegex(@"playlist/(?:[^/]+/)?(pl\.[a-z0-9]+)", RegexOptions.IgnoreCase)]
     private static partial Regex PlaylistIdRegex();
 
+    // Aliases saved before artist and exact-edition checks may point at another edition (e.g. the
+    // 20th Anniversary release for the plain album); those are looked up again once.
+    private static readonly DateTime EditionCheckCutoff = new(2026, 10, 21, 16, 0, 0, DateTimeKind.Utc);
+
     private static bool NeedsTallArtworkRefresh(ArtworkCacheEntry entry)
     {
         bool hasSquareArtwork = !string.IsNullOrWhiteSpace(entry.M3u8Url) && entry.M3u8Url != "NONE";
@@ -144,12 +148,15 @@ public partial class ArtworkService(
             Log.Information("Metadata resolution cache hit: Artist={Artist}, Album={Album} -> {AppleMusicUrl}", artist, album, lookup.ResolvedAppleMusicUrl);
 
             (ArtworkCacheEntry? resolvedEntry, bool resolvedIsCached) = await GetArtworkByUrlAsync(lookup.ResolvedAppleMusicUrl, ct);
-            if (resolvedEntry != null && CacheKeyNormalizer.ArtistsMatch(artist, resolvedEntry.Artist))
+            bool outdatedEdition = lookup.LastResolved < EditionCheckCutoff
+                                   && resolvedEntry != null
+                                   && CacheKeyNormalizer.Normalize(resolvedEntry.Album) != CacheKeyNormalizer.Normalize(album);
+            if (resolvedEntry != null && !outdatedEdition && CacheKeyNormalizer.ArtistsMatch(artist, resolvedEntry.Artist))
             {
                 return (resolvedEntry, resolvedIsCached);
             }
 
-            Log.Information("Metadata resolution cache entry is stale or has the wrong artist. Removing alias for Artist={Artist}, Album={Album}", artist, album);
+            Log.Information("Metadata resolution cache entry is stale, has the wrong artist or is an old edition match. Removing alias for Artist={Artist}, Album={Album}", artist, album);
             metadataResolutionCache.RemoveResolvedUrl(artist, album);
         }
 

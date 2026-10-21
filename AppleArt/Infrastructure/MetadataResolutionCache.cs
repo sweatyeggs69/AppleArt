@@ -42,7 +42,7 @@ public sealed class MetadataResolutionCache(SqliteDatabase database)
             return new(MetadataResolutionStatus.None);
         }
 
-        return new(MetadataResolutionStatus.Resolved, resolvedAppleMusicUrl);
+        return new(MetadataResolutionStatus.Resolved, resolvedAppleMusicUrl, lastResolved);
     }
 
     public void SaveResolvedUrl(string artist, string album, string resolvedAppleMusicUrl)
@@ -136,7 +136,8 @@ public readonly record struct MetadataResolutionEntry(
 
 public readonly record struct MetadataResolutionLookup(
     MetadataResolutionStatus Status,
-    string? ResolvedAppleMusicUrl = null
+    string? ResolvedAppleMusicUrl = null,
+    DateTime LastResolved = default
 );
 
 public enum MetadataResolutionStatus
