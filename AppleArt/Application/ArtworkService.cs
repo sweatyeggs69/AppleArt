@@ -144,16 +144,20 @@ public partial class ArtworkService(
             Log.Information("Metadata resolution cache hit: Artist={Artist}, Album={Album} -> {AppleMusicUrl}", artist, album, lookup.ResolvedAppleMusicUrl);
 
             (ArtworkCacheEntry? resolvedEntry, bool resolvedIsCached) = await GetArtworkByUrlAsync(lookup.ResolvedAppleMusicUrl, ct);
-            if (resolvedEntry != null)
+            if (resolvedEntry != null && CacheKeyNormalizer.ArtistsMatch(artist, resolvedEntry.Artist))
             {
                 return (resolvedEntry, resolvedIsCached);
             }
 
-            Log.Information("Metadata resolution cache entry is stale. Removing alias for Artist={Artist}, Album={Album}", artist, album);
+            Log.Information("Metadata resolution cache entry is stale or has the wrong artist. Removing alias for Artist={Artist}, Album={Album}", artist, album);
             metadataResolutionCache.RemoveResolvedUrl(artist, album);
         }
 
         ArtworkCacheEntry? cachedEntry = cache.GetByArtistAndAlbum(artist, album);
+        if (cachedEntry != null && !CacheKeyNormalizer.ArtistsMatch(artist, cachedEntry.Artist))
+        {
+            cachedEntry = null;
+        }
         if (cachedEntry != null)
         {
             if (!NeedsTallArtworkRefresh(cachedEntry))
@@ -196,15 +200,41 @@ public partial class ArtworkService(
             return (null, false);
         }
 
-        if (string.IsNullOrWhiteSpace(webSearchResult.Url))
+        if (webSearchResult.Urls is not { Count: > 0 })
         {
             Log.Warning("Search returned status Found without URL for Artist={Artist}, Album={Album}", artist, album);
             return (null, false);
         }
 
-        Log.Information("Search resolved URL: {AppleMusicUrl}", webSearchResult.Url);
-        metadataResolutionCache.SaveResolvedUrl(artist, album, webSearchResult.Url);
+        // The search page lists albums by title only, so take the first candidate by the requested artist.
+        bool lookupFailed = false;
+        foreach (string candidateUrl in webSearchResult.Urls ?? [])
+        {
+            (ArtworkCacheEntry? candidateEntry, bool candidateIsCached) = await GetArtworkByUrlAsync(candidateUrl, ct);
+            if (candidateEntry == null)
+            {
+                lookupFailed = true;
+                continue;
+            }
 
-        return await GetArtworkByUrlAsync(webSearchResult.Url, ct);
+            if (!CacheKeyNormalizer.ArtistsMatch(artist, candidateEntry.Artist))
+            {
+                Log.Information("Rejected candidate with wrong artist. Requested: {Artist}, Found: {FoundArtist}, Url: {AppleMusicUrl}",
+                    artist, candidateEntry.Artist, candidateUrl);
+                continue;
+            }
+
+            Log.Information("Search resolved URL: {AppleMusicUrl}", candidateUrl);
+            metadataResolutionCache.SaveResolvedUrl(artist, album, candidateUrl);
+            return (candidateEntry, candidateIsCached);
+        }
+
+        if (!lookupFailed)
+        {
+            metadataResolutionCache.SaveNoMatch(artist, album);
+        }
+
+        Log.Information("No candidate matched the artist for Artist={Artist}, Album={Album}", artist, album);
+        return (null, false);
     }
 }

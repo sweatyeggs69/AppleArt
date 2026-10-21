@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 public enum AppleMusicWebSearchStatus
 {
     Found,
@@ -8,5 +10,6 @@ public enum AppleMusicWebSearchStatus
 
 public readonly record struct AppleMusicWebSearchResult(
     AppleMusicWebSearchStatus Status,
-    string? Url = null
+    // Candidate album URLs, closest album-title match first.
+    IReadOnlyList<string>? Urls = null
 );

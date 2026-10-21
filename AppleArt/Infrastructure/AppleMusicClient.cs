@@ -79,10 +79,10 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
 
             MatchCollection matches = AppleMusicLinkRegex().Matches(htmlContent);
 
-            // Take the closest edition, not the first hit: an exact title beats "The Encore" or
-            // "30th Anniversary" variants that merely contain the requested name.
-            string? bestUrl = null;
-            int bestRank = int.MaxValue;
+            // Closest edition first, not the first hit: an exact title beats "The Encore" or
+            // "30th Anniversary" variants that merely contain the requested name. The search page
+            // does not show artists, so the caller verifies the artist on each candidate.
+            List<(string Url, int Rank)> candidates = [];
 
             foreach (Match match in matches)
             {
@@ -96,17 +96,17 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                     continue;
                 }
 
-                if (rank < bestRank)
+                if (candidates.All(c => c.Url != foundUrl))
                 {
-                    bestRank = rank;
-                    bestUrl = foundUrl;
+                    candidates.Add((foundUrl, rank));
                 }
             }
 
-            if (bestUrl != null)
+            if (candidates.Count > 0)
             {
-                Log.Debug("Found matching album: {Url} (extra words: {Rank}) for query: {Query}", bestUrl, bestRank, query);
-                return new(AppleMusicWebSearchStatus.Found, bestUrl);
+                List<string> urls = candidates.OrderBy(c => c.Rank).Select(c => c.Url).Take(5).ToList();
+                Log.Debug("Found {Count} candidate albums for query: {Query}", urls.Count, query);
+                return new(AppleMusicWebSearchStatus.Found, urls);
             }
 
             Log.Debug("Found no matching album links in HTML for query: {Query}", query);
