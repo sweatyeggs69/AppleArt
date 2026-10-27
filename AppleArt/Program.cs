@@ -137,6 +137,23 @@ try
         }
     });
 
+    // Optional: when ORIGIN_SECRET is set, /api only answers requests carrying it (sent by api.tromme.app).
+    var originSecret = Environment.GetEnvironmentVariable("ORIGIN_SECRET");
+    if (!string.IsNullOrEmpty(originSecret))
+    {
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api") &&
+                context.Request.Headers["X-Origin-Secret"] != originSecret)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
+            await next();
+        });
+    }
+
     app.Use(async (context, next) =>
     {
         if (context.Request.Path.StartsWithSegments("/api"))

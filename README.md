@@ -31,6 +31,9 @@ Base URL: https://amaa.tromme.app
 
 ```GET /api/v1/artwork/history```
 
+## Origin Secret
+Set `ORIGIN_SECRET` to make `/api` require a matching `X-Origin-Secret` header (the Tromme API Worker adds it). Unset, the API is open.
+
 ## Caching Strategy
 This project is designed to be "Apple-friendly" to avoid rate limits:
 1. **Edition Matching:** Searches pick the closest album title, so an exact match beats editions such as "Deluxe" or "Anniversary". Cached lookups match the normalized album name exactly.
