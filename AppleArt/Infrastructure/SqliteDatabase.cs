@@ -87,11 +87,20 @@ public sealed class SqliteDatabase
         using var versionCommand = connection.CreateCommand();
         versionCommand.CommandText = "PRAGMA user_version;";
         long version = Convert.ToInt64(versionCommand.ExecuteScalar());
-        if (version >= 1) return;
+        if (version < 1)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = "DELETE FROM metadata_resolutions; PRAGMA user_version = 1;";
+            purge.ExecuteNonQuery();
+        }
 
-        using var purge = connection.CreateCommand();
-        purge.CommandText = "DELETE FROM metadata_resolutions; PRAGMA user_version = 1;";
-        purge.ExecuteNonQuery();
+        // v2: no-match rows could be written by a punctuation variant of a real name. Drop them once.
+        if (version < 2)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = $"DELETE FROM metadata_resolutions WHERE status = {(int)MetadataResolutionStatus.NoMatch}; PRAGMA user_version = 2;";
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;

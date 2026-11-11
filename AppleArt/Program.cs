@@ -8,9 +8,9 @@ using AnimatedArtworks.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -53,23 +53,23 @@ try
     
     builder.Services.AddSingleton<KeyedLocker>();
 
+    builder.Services.AddSingleton(new AppleLookupLimiter(
+        perClientPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE", 20),
+        globalPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_MINUTE", 120)));
+
+    builder.Services.AddTransient<AppleEgressHandler>();
     builder.Services.AddHttpClient<IAppleMusicClient, AppleMusicClient>(client =>
     {
         client.Timeout = TimeSpan.FromSeconds(5);
         client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15");
         client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-    });
+    })
+    .ConfigurePrimaryHttpMessageHandler(AppleEgressHandler.CreatePrimaryHandler)
+    .AddHttpMessageHandler<AppleEgressHandler>();
 
     builder.Services.AddScoped<ArtworkService>();
 
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownNetworks.Clear();
-        options.KnownProxies.Clear();
-    });
-    
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
@@ -96,14 +96,7 @@ try
 
         options.AddPolicy("ApiRateLimit", httpContext =>
         {
-            var remoteIp = httpContext.Connection.RemoteIpAddress;
-            var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-
-            var clientIp = !string.IsNullOrWhiteSpace(forwardedFor)
-                ? forwardedFor.Split(',')[0].Trim()
-                : remoteIp?.ToString() ?? "global";
-
-            return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+            return RateLimitPartition.GetFixedWindowLimiter(ClientIdentity.Resolve(httpContext), _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 20,
                 Window = TimeSpan.FromSeconds(1),
@@ -116,7 +109,6 @@ try
 
     var app = builder.Build();
 
-    app.UseForwardedHeaders();
     app.UseCors("AllowAll");
 
     app.UseDefaultFiles();
@@ -212,6 +204,7 @@ try
         [FromServices] ArtworkService service,
         [FromServices] ILogger<Program> logger,
         [FromServices] ArtworkCache cacheService,
+        HttpContext context,
         HttpResponse response,
         CancellationToken ct) =>
     {
@@ -222,7 +215,10 @@ try
         if (string.IsNullOrWhiteSpace(artist) || string.IsNullOrWhiteSpace(album))
             return Results.BadRequest("Artist and Album must be provided.");
         
+        service.SetClient(ClientIdentity.Resolve(context));
         (ArtworkCacheEntry? entry, bool isCached) = await service.GetArtworkByDetailsAsync(artist, album, title, ct);
+        if (entry == null && service.WasThrottled)
+            return Throttled(response);
 
         if (entry != null)
         {
@@ -248,16 +244,20 @@ try
         [FromServices] ArtworkService service,
         [FromServices] ILogger<Program> logger,
         [FromServices] ArtworkCache cacheService,
+        HttpContext context,
         HttpResponse response,
         CancellationToken ct) =>
     {
         response.Headers.CacheControl = "public, max-age=86400";
         logger.LogInformation("Incoming Request: URL Search -> {AppleMusicUrl}", url);
         
-        if (string.IsNullOrWhiteSpace(url) || !url.Contains("music.apple.com"))
-            return Results.BadRequest("A valid Apple Music URL must be provided.");
+        if (!AppleMusicUrl.TryParse(url, out _))
+            return Results.BadRequest("A valid Apple Music album or playlist URL must be provided.");
 
+        service.SetClient(ClientIdentity.Resolve(context));
         var (entry, isCached) = await service.GetArtworkByUrlAsync(url, ct);
+        if (entry == null && service.WasThrottled)
+            return Throttled(response);
 
         if (entry != null)
         {
@@ -294,6 +294,13 @@ try
     }).RequireRateLimiting("ApiRateLimit");
 
     app.Run();
+
+    static IResult Throttled(HttpResponse response)
+    {
+        response.Headers.CacheControl = "no-store";
+        response.Headers.RetryAfter = "60";
+        return Results.Text("Too many new lookups. Please slow down.", "text/plain", statusCode: StatusCodes.Status429TooManyRequests);
+    }
 }
 catch (Exception ex)
 {

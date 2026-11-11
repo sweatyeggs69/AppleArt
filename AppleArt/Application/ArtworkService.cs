@@ -1,5 +1,4 @@
 using System;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using AnimatedArtworks.Infrastructure;
@@ -11,15 +10,33 @@ public partial class ArtworkService(
     IAppleMusicClient appleMusicClient,
     ArtworkCache cache,
     MetadataResolutionCache metadataResolutionCache,
-    KeyedLocker locker)
+    KeyedLocker locker,
+    AppleLookupLimiter lookupLimiter)
 {
+    private string _client = "unknown";
+    private bool _lookupPermitted;
+
+    public bool WasThrottled { get; private set; }
+
+    public void SetClient(string client) => _client = client;
+
+    // One permit per incoming request, taken only once it actually has to reach Apple.
+    private bool TryStartAppleLookup()
+    {
+        if (_lookupPermitted) return true;
+        if (WasThrottled) return false;
+
+        _lookupPermitted = lookupLimiter.TryAcquire(_client);
+        if (!_lookupPermitted)
+        {
+            WasThrottled = true;
+            Log.Information("Uncached Apple lookup limit reached for client {Client}", _client);
+        }
+
+        return _lookupPermitted;
+    }
+
     private static readonly TimeSpan NegativeSearchCacheTtl = TimeSpan.FromDays(30);
-
-    [GeneratedRegex(@"album/(?:[^/]+/)?(\d+)", RegexOptions.IgnoreCase)]
-    private static partial Regex AlbumIdRegex();
-
-    [GeneratedRegex(@"playlist/(?:[^/]+/)?(pl\.[a-z0-9]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex PlaylistIdRegex();
 
     // Aliases saved before artist and exact-edition checks may point at another edition (e.g. the
     // 20th Anniversary release for the plain album); those are looked up again once.
@@ -34,29 +51,16 @@ public partial class ArtworkService(
         return hasSquareArtwork && missingTallArtwork && updatedBeforeTallImplement;
     }
 
-    private string NormalizeUrl(string url)
-    {
-        var albumMatch = AlbumIdRegex().Match(url);
-        if (albumMatch.Success)
-        {
-            var id = albumMatch.Groups[1].Value;
-            return $"https://music.apple.com/album/{id}";
-        }
-
-        var playlistMatch = PlaylistIdRegex().Match(url);
-        if (playlistMatch.Success)
-        {
-            var id = playlistMatch.Groups[1].Value;
-            return $"https://music.apple.com/playlist/{id}";
-        }
-
-        return url.ToLowerInvariant().Trim();
-    }
-
     public async Task<(ArtworkCacheEntry? Entry, bool IsCached)> GetArtworkByUrlAsync(string appleMusicUrl,
         CancellationToken ct = default)
     {
-        string normalizedUrl = NormalizeUrl(appleMusicUrl);
+        if (!AppleMusicUrl.TryParse(appleMusicUrl, out AppleMusicCatalogTarget target))
+        {
+            Log.Information("Rejected non-catalog Apple Music URL: {AppleMusicUrl}", appleMusicUrl);
+            return (null, false);
+        }
+
+        string normalizedUrl = target.CacheKey;
 
         ArtworkCacheEntry? cachedEntry = cache.GetByUrl(normalizedUrl);
         if (cachedEntry != null && !NeedsTallArtworkRefresh(cachedEntry))
@@ -82,7 +86,12 @@ public partial class ArtworkService(
                 return (cachedEntry, true);
             }
 
-            AppleMusicPageParseResult parseResult = await appleMusicClient.ParseAppleMusicPageAsync(appleMusicUrl, ct);
+            if (!TryStartAppleLookup())
+            {
+                return (cachedEntry, cachedEntry != null);
+            }
+
+            AppleMusicPageParseResult parseResult = await appleMusicClient.ParseAppleMusicPageAsync(target, ct);
 
             if (parseResult.Status == AppleMusicPageParseStatus.RateLimited)
             {
@@ -148,6 +157,10 @@ public partial class ArtworkService(
             Log.Information("Metadata resolution cache hit: Artist={Artist}, Album={Album} -> {AppleMusicUrl}", artist, album, lookup.ResolvedAppleMusicUrl);
 
             (ArtworkCacheEntry? resolvedEntry, bool resolvedIsCached) = await GetArtworkByUrlAsync(lookup.ResolvedAppleMusicUrl, ct);
+            if (WasThrottled)
+            {
+                return (resolvedEntry, resolvedIsCached);
+            }
             bool outdatedEdition = lookup.LastResolved < EditionCheckCutoff
                                    && resolvedEntry != null
                                    && CacheKeyNormalizer.Normalize(resolvedEntry.Album) != CacheKeyNormalizer.Normalize(album);
@@ -156,8 +169,12 @@ public partial class ArtworkService(
                 return (resolvedEntry, resolvedIsCached);
             }
 
-            Log.Information("Metadata resolution cache entry is stale, has the wrong artist or is an old edition match. Removing alias for Artist={Artist}, Album={Album}", artist, album);
-            metadataResolutionCache.RemoveResolvedUrl(artist, album);
+            // Only the query that saved the alias may drop it; a variant spelling must not erase it for everyone.
+            if (lookup.SavedForSameQuery)
+            {
+                Log.Information("Metadata resolution cache entry is stale, has the wrong artist or is an old edition match. Removing alias for Artist={Artist}, Album={Album}", artist, album);
+                metadataResolutionCache.RemoveResolvedUrl(artist, album);
+            }
         }
 
         ArtworkCacheEntry? cachedEntry = cache.GetByArtistAndAlbum(artist, album);
@@ -181,6 +198,11 @@ public partial class ArtworkService(
         else
         {
             Log.Information("Cache miss (by metadata): Artist={Artist}, Album={Album}", artist, album);
+        }
+
+        if (!TryStartAppleLookup())
+        {
+            return (cachedEntry, cachedEntry != null);
         }
 
         Log.Information("Triggering web search: Artist={Artist}, Album={Album}, Title={Title}", artist, album, title ?? "");

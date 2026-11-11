@@ -12,11 +12,6 @@ using Serilog;
 namespace AnimatedArtworks.Infrastructure;
 public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService statusService) : IAppleMusicClient
 {
-    [GeneratedRegex(@"music\.apple\.com/(?:([a-z]{2})/)?album/(?:[^/]+/)?(\d+)", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
-    private partial Regex StorefrontAlbumRegex();
-
-    [GeneratedRegex(@"music\.apple\.com/(?:([a-z]{2})/)?playlist/(?:[^/]+/)?(pl\.[a-z0-9]+)", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
-    private partial Regex StorefrontPlaylistRegex();
     private static readonly SemaphoreSlim _appleMusicSemaphore = new(2, 2);
 
     [GeneratedRegex(@"(/assets/[^""]+\.js)", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
@@ -257,11 +252,11 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         }
     }
 
-    public async Task<AppleMusicPageParseResult> ParseAppleMusicPageAsync(string url, CancellationToken ct)
+    public async Task<AppleMusicPageParseResult> ParseAppleMusicPageAsync(AppleMusicCatalogTarget target, CancellationToken ct)
     {
         if (statusService.IsInBackoff())
         {
-            Log.Warning("Global rate-limit backoff active. Skipping album page request for {Url}", url);
+            Log.Warning("Global rate-limit backoff active. Skipping album page request for {Url}", target.PageUrl);
             return new(AppleMusicPageParseStatus.RateLimited);
         }
 
@@ -270,19 +265,14 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         {
             if (statusService.IsInBackoff())
             {
-                Log.Warning("Global rate-limit backoff active (after lock). Skipping album page request for {Url}", url);
+                Log.Warning("Global rate-limit backoff active (after lock). Skipping album page request for {Url}", target.PageUrl);
                 return new(AppleMusicPageParseStatus.RateLimited);
             }
 
-            if (!TryParseCatalogTarget(url, out string storefront, out string resourceType, out string resourceId))
-            {
-                return new AppleMusicPageParseResult(AppleMusicPageParseStatus.Error);
-            }
-
-            string? token = await GetBearerTokenAsync(url, ct);
+            string? token = await GetBearerTokenAsync(target.PageUrl, ct);
             if (token == null) return new AppleMusicPageParseResult(AppleMusicPageParseStatus.Error);
 
-            string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/{storefront}/{resourceType}/{resourceId}?extend=editorialVideo&platform=web";
+            string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/{target.Storefront}/{target.ResourceType}/{Uri.EscapeDataString(target.Id)}?extend=editorialVideo&platform=web";
 
             using var request = new HttpRequestMessage(HttpMethod.Get, apiUrl);
             request.Headers.Add("Authorization", $"Bearer {token}");
@@ -307,7 +297,18 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             var jsonString = await response.Content.ReadAsStringAsync(ct);
             JsonNode? json = JsonNode.Parse(jsonString);
 
-            var attrs = json?["data"]?[0]?["attributes"];
+            JsonNode? data = json?["data"]?[0];
+            string? returnedId = data?["id"]?.ToString();
+            string? returnedType = data?["type"]?.ToString();
+            if (!string.Equals(returnedId, target.Id, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(returnedType, target.ResourceType, StringComparison.Ordinal))
+            {
+                Log.Warning("Catalog response did not match the requested {ResourceType} {Id} (got {ReturnedType} {ReturnedId})",
+                    target.ResourceType, target.Id, returnedType, returnedId);
+                return new AppleMusicPageParseResult(AppleMusicPageParseStatus.Error);
+            }
+
+            var attrs = data?["attributes"];
             if (attrs != null)
             {
                 string artistName = attrs["artistName"]?.ToString()
@@ -346,32 +347,5 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                 _appleMusicSemaphore.Release();
             }
         }
-    }
-
-    private bool TryParseCatalogTarget(string url, out string storefront, out string resourceType, out string resourceId)
-    {
-        storefront = "us";
-        resourceType = string.Empty;
-        resourceId = string.Empty;
-
-        Match albumMatch = StorefrontAlbumRegex().Match(url);
-        if (albumMatch.Success)
-        {
-            storefront = !string.IsNullOrEmpty(albumMatch.Groups[1].Value) ? albumMatch.Groups[1].Value : "us";
-            resourceType = "albums";
-            resourceId = albumMatch.Groups[2].Value;
-            return true;
-        }
-
-        Match playlistMatch = StorefrontPlaylistRegex().Match(url);
-        if (playlistMatch.Success)
-        {
-            storefront = !string.IsNullOrEmpty(playlistMatch.Groups[1].Value) ? playlistMatch.Groups[1].Value : "us";
-            resourceType = "playlists";
-            resourceId = playlistMatch.Groups[2].Value;
-            return true;
-        }
-
-        return false;
     }
 }

@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using AnimatedArtworks.Infrastructure;
 
 public interface IAppleMusicClient
 {
@@ -9,5 +10,5 @@ public interface IAppleMusicClient
     Task<AppleMusicWebSearchResult> GetAppleMusicUrlViaWebSearchAsync(string artist, string album, string? title = null,
         CancellationToken ct = default);
     
-    Task<AppleMusicPageParseResult> ParseAppleMusicPageAsync(string url, CancellationToken ct);
+    Task<AppleMusicPageParseResult> ParseAppleMusicPageAsync(AppleMusicCatalogTarget target, CancellationToken ct);
 }

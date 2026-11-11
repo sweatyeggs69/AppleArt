@@ -11,12 +11,14 @@ public sealed class MetadataResolutionCache(SqliteDatabase database)
 
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT status, resolved_apple_music_url, last_resolved FROM metadata_resolutions WHERE key = $key";
+        command.CommandText = "SELECT status, resolved_apple_music_url, last_resolved, artist, album FROM metadata_resolutions WHERE key = $key";
         command.Parameters.AddWithValue("$key", key);
 
         MetadataResolutionStatus status;
         string? resolvedAppleMusicUrl;
         DateTime lastResolved;
+        string storedArtist;
+        string storedAlbum;
 
         using (var reader = command.ExecuteReader())
         {
@@ -28,21 +30,27 @@ public sealed class MetadataResolutionCache(SqliteDatabase database)
             status = (MetadataResolutionStatus)reader.GetInt32(0);
             resolvedAppleMusicUrl = reader.IsDBNull(1) ? null : reader.GetString(1);
             lastResolved = SqliteDatabase.FromUnixMilliseconds(reader.GetInt64(2));
+            storedArtist = reader.GetString(3);
+            storedAlbum = reader.GetString(4);
         }
+
+        bool sameQuery = IsSameQuery(storedArtist, storedAlbum, artist, album);
 
         if (status == MetadataResolutionStatus.NoMatch)
         {
             bool isFreshNoMatch = DateTime.UtcNow - lastResolved <= noMatchTtl;
-            if (isFreshNoMatch)
+            if (!isFreshNoMatch)
             {
-                return new(MetadataResolutionStatus.NoMatch);
+                Delete(connection, key);
+                return new(MetadataResolutionStatus.None);
             }
 
-            Delete(connection, key);
-            return new(MetadataResolutionStatus.None);
+            // A no-match only answers the exact query that produced it, so a punctuation variant
+            // that normalizes to the same key can't hide artwork from the real name.
+            return sameQuery ? new(MetadataResolutionStatus.NoMatch) : new(MetadataResolutionStatus.None);
         }
 
-        return new(MetadataResolutionStatus.Resolved, resolvedAppleMusicUrl, lastResolved);
+        return new(MetadataResolutionStatus.Resolved, resolvedAppleMusicUrl, lastResolved, sameQuery);
     }
 
     public void SaveResolvedUrl(string artist, string album, string resolvedAppleMusicUrl)
@@ -58,13 +66,26 @@ public sealed class MetadataResolutionCache(SqliteDatabase database)
 
     public void SaveNoMatch(string artist, string album)
     {
-        Save(new MetadataResolutionEntry(
-            Artist: artist,
-            Album: album,
-            ResolvedAppleMusicUrl: null,
-            Status: MetadataResolutionStatus.NoMatch,
-            LastResolved: DateTime.UtcNow
-        ));
+        using var connection = database.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO metadata_resolutions (key, artist, album, resolved_apple_music_url, status, last_resolved)
+            VALUES ($key, $artist, $album, NULL, $status, $lastResolved)
+            ON CONFLICT (key) DO UPDATE SET
+                artist = excluded.artist,
+                album = excluded.album,
+                resolved_apple_music_url = NULL,
+                status = excluded.status,
+                last_resolved = excluded.last_resolved
+            WHERE metadata_resolutions.status <> $resolvedStatus
+            """;
+        command.Parameters.AddWithValue("$key", CacheKeyNormalizer.BuildMetadataKey(artist, album));
+        command.Parameters.AddWithValue("$artist", artist);
+        command.Parameters.AddWithValue("$album", album);
+        command.Parameters.AddWithValue("$status", (int)MetadataResolutionStatus.NoMatch);
+        command.Parameters.AddWithValue("$resolvedStatus", (int)MetadataResolutionStatus.Resolved);
+        command.Parameters.AddWithValue("$lastResolved", SqliteDatabase.ToUnixMilliseconds(DateTime.UtcNow));
+        command.ExecuteNonQuery();
     }
 
     public void RemoveResolvedUrl(string artist, string album)
@@ -72,6 +93,10 @@ public sealed class MetadataResolutionCache(SqliteDatabase database)
         using var connection = database.OpenConnection();
         Delete(connection, CacheKeyNormalizer.BuildMetadataKey(artist, album));
     }
+
+    private static bool IsSameQuery(string storedArtist, string storedAlbum, string artist, string album) =>
+        string.Equals(storedArtist.Trim(), artist.Trim(), StringComparison.Ordinal) &&
+        string.Equals(storedAlbum.Trim(), album.Trim(), StringComparison.Ordinal);
 
     private void Save(MetadataResolutionEntry entry)
     {
@@ -137,7 +162,8 @@ public readonly record struct MetadataResolutionEntry(
 public readonly record struct MetadataResolutionLookup(
     MetadataResolutionStatus Status,
     string? ResolvedAppleMusicUrl = null,
-    DateTime LastResolved = default
+    DateTime LastResolved = default,
+    bool SavedForSameQuery = false
 );
 
 public enum MetadataResolutionStatus
