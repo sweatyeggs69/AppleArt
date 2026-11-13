@@ -130,15 +130,6 @@ public sealed class SqliteDatabase
                 """;
             purge.ExecuteNonQuery();
         }
-
-        // v5: artist results now carry the motion video. Mark them stale once so they are rechecked,
-        // while the old row can still be served if the recheck fails.
-        if (version < 5)
-        {
-            using var purge = connection.CreateCommand();
-            purge.CommandText = "UPDATE static_artworks SET last_fetched = 0 WHERE key LIKE 'artist|%'; PRAGMA user_version = 5;";
-            purge.ExecuteNonQuery();
-        }
     }
 
     public void MarkInitialized() => _isInitialized = true;

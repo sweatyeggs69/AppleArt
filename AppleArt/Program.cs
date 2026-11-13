@@ -431,8 +431,7 @@ try
                         thumbnail = a.ThumbnailUrl,
                         appleMusicUrl = a.AppleMusicUrl,
                         releaseDate = a.ReleaseDate,
-                        logo = a.LogoUrl,
-                        video = a.VideoUrl
+                        logo = a.LogoUrl
                     }),
                     isCached
                 });

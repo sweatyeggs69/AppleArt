@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace AnimatedArtworks.Infrastructure;
 
 // Persisted like animated artwork: found results are kept for good, no-matches expire after 30 days.
-// Artist results carry the logo and motion video, which Apple can change, so they are rechecked after 30 days too.
+// Artist results carry the logo, which Apple can change, so they are rechecked after 30 days too.
 // Keyed by the exact (trimmed, case-folded) query, so a no-match only answers that same query.
 public sealed class StaticArtworkCache(SqliteDatabase database)
 {
