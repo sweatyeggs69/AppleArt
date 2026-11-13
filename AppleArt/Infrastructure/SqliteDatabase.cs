@@ -117,6 +117,19 @@ public sealed class SqliteDatabase
             purge.CommandText = $"DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch} AND key NOT LIKE 'artist|%'; PRAGMA user_version = 3;";
             purge.ExecuteNonQuery();
         }
+
+        // v4: every lookup now uses the Apple Music catalog instead of the search page and iTunes.
+        // Drop the remaining no-matches once so the catalog gets a chance at them.
+        if (version < 4)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = $"""
+                DELETE FROM metadata_resolutions WHERE status = {(int)MetadataResolutionStatus.NoMatch};
+                DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch};
+                PRAGMA user_version = 4;
+                """;
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;

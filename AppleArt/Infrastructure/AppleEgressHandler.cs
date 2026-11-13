@@ -18,8 +18,7 @@ public sealed class AppleEgressHandler : DelegatingHandler
     private static readonly HashSet<string> AllowedHosts = new(StringComparer.OrdinalIgnoreCase)
     {
         "music.apple.com",
-        "amp-api.music.apple.com",
-        "itunes.apple.com"
+        "amp-api.music.apple.com"
     };
 
     public static bool IsAllowed(Uri? uri) =>

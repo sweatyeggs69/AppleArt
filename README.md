@@ -9,7 +9,7 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 
 ## What it does
 - Search: Accepts artist and album names, or Apple Music URLs, to find the corresponding animated artwork.
-- Scraping: Pulls the .m3u8 stream URLs directly from Apple Music.
+- Catalog: Every lookup (animated, static, artist, album details) goes through the Apple Music catalog API.
 - Multiple Variants: Supports both the standard square cover and the taller variant used for lock screen & expanded artwork views.
 - API: Provides a simple REST API for programmatic access to the artwork data.
 - Cache: Saves results in local cache files. It only hits Apple's servers once per album.
@@ -35,7 +35,7 @@ Base URL: https://amaa.tromme.app
 
 ```GET /api/v1/artwork/static/url?url=https://music.apple.com/us/album/...```
 
-Both return `results`, closest album title first, each with `url` (1000x1000), `thumbnail` (600x600), `artist`, `album`, `appleMusicUrl` and `releaseDate`. Lookups go to the Apple Music catalog (the iTunes Search API is only a fallback when the catalog fails) and are saved in the SQLite cache like animated artwork: found results are kept, no-matches expire after 30 days (exact query only), and count against the same Apple lookup limits.
+Both return `results`, closest album title first, each with `url` (1000x1000), `thumbnail` (600x600), `artist`, `album`, `appleMusicUrl` and `releaseDate`. Lookups go to the Apple Music catalog and are saved in the SQLite cache like animated artwork: found results are kept, no-matches expire after 30 days (exact query only), and count against the same Apple lookup limits.
 
 **Get Artist Images**
 
@@ -47,7 +47,7 @@ Same response shape (empty `album`, no `releaseDate`, plus `logo`: a transparent
 
 ```GET /api/v1/album/details?id=1440935467&country=us```
 
-The album (`title`, `artist`, `releaseDate`, `genre`, `copyright`, `artwork` at 1400x1400) and its `tracks` (`title`, `artist`, `trackNumber`, `discNumber`, `durationMs`) from an iTunes lookup. `id` is the number at the end of an `appleMusicUrl`, `country` defaults to `us`. Kept in memory for a day (no-matches for an hour) and counted against the Apple lookup limits.
+The album (`title`, `artist`, `releaseDate`, `genre`, `copyright`, `artwork` at 1400x1400) and its `tracks` (`title`, `artist`, `trackNumber`, `discNumber`, `durationMs`) from the Apple Music catalog. `id` is the number at the end of an `appleMusicUrl`, `country` defaults to `us`. Kept in memory for a day (no-matches for an hour) and counted against the Apple lookup limits.
 
 **Get Global History**
 

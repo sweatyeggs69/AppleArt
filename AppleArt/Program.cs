@@ -315,7 +315,7 @@ try
     {
         logger.LogInformation("Incoming Request: Static URL -> {AppleMusicUrl}", url);
 
-        // iTunes lookup only knows albums; playlist covers are not offered.
+        // Static covers are offered for albums only.
         if (!AppleMusicUrl.TryParse(url, out AppleMusicCatalogTarget target) || target.ResourceType != "albums")
             return Results.BadRequest("A valid Apple Music album URL must be provided.");
 
