@@ -5,21 +5,26 @@ using System.Text.Json;
 namespace AnimatedArtworks.Infrastructure;
 
 // Persisted like animated artwork: found results are kept for good, no-matches expire after 30 days.
+// Artist results carry the logo, which Apple can change, so they are rechecked after 30 days too.
 // Keyed by the exact (trimmed, case-folded) query, so a no-match only answers that same query.
 public sealed class StaticArtworkCache(SqliteDatabase database)
 {
     private static readonly TimeSpan NoMatchTtl = TimeSpan.FromDays(30);
+    private static readonly TimeSpan ArtistRecheckInterval = TimeSpan.FromDays(30);
+    private const string ArtistKeyPrefix = "artist|";
 
     public static string SearchKey(string artist, string album) =>
         $"search|{artist.Trim().ToLowerInvariant()}|{album.Trim().ToLowerInvariant()}";
 
-    public static string ArtistKey(string artist) => $"artist|{artist.Trim().ToLowerInvariant()}";
+    public static string ArtistKey(string artist) => $"{ArtistKeyPrefix}{artist.Trim().ToLowerInvariant()}";
 
     public static string LookupKey(AppleMusicCatalogTarget target) => $"lookup|{target.Storefront}|{target.Id}";
 
-    public bool TryGet(string key, out StaticArtworkLookupResult result)
+    // A stale result is returned too, so it can still be served when the recheck fails.
+    public bool TryGet(string key, out StaticArtworkLookupResult result, out bool isStale)
     {
         result = default;
+        isStale = false;
 
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
@@ -55,6 +60,8 @@ public sealed class StaticArtworkCache(SqliteDatabase database)
         }
 
         result = new StaticArtworkLookupResult(StaticArtworkLookupStatus.Found, artworks);
+        isStale = key.StartsWith(ArtistKeyPrefix, StringComparison.Ordinal) &&
+                  DateTime.UtcNow - lastFetched >= ArtistRecheckInterval;
         return true;
     }
 

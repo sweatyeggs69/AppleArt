@@ -30,7 +30,7 @@ public class StaticArtworkService(
     private async Task<(StaticArtworkLookupResult Result, bool IsCached)> GetAsync(
         string key, Func<Task<StaticArtworkLookupResult>> fetch, CancellationToken ct)
     {
-        if (cache.TryGet(key, out StaticArtworkLookupResult cached))
+        if (cache.TryGet(key, out StaticArtworkLookupResult cached, out bool isStale) && !isStale)
         {
             return (cached, true);
         }
@@ -42,19 +42,30 @@ public class StaticArtworkService(
 
         try
         {
-            if (cache.TryGet(key, out cached))
+            bool hasCached = cache.TryGet(key, out cached, out isStale);
+            if (hasCached && !isStale)
             {
                 return (cached, true);
             }
 
             if (!lookupLimiter.TryAcquire(_client))
             {
-                WasThrottled = true;
                 Log.Information("Uncached Apple lookup limit reached for client {Client}", _client);
+                if (hasCached)
+                {
+                    return (cached, true);
+                }
+
+                WasThrottled = true;
                 return (new StaticArtworkLookupResult(StaticArtworkLookupStatus.RateLimited), false);
             }
 
             StaticArtworkLookupResult result = await fetch();
+            if (hasCached && result.Status is not (StaticArtworkLookupStatus.Found or StaticArtworkLookupStatus.NoMatch))
+            {
+                return (cached, true);
+            }
+
             cache.Save(key, result);
             return (result, false);
         }
