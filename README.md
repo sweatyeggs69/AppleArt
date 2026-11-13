@@ -41,7 +41,7 @@ Both return `results`, closest album title first, each with `url` (1000x1000), `
 
 ```GET /api/v1/artwork/artist/search?artist=Gorillaz```
 
-Same response shape (empty `album`, no `releaseDate`, plus `logo`: a transparent HEIC wordmark when Apple has one), from the Apple Music catalog, with the same caching and limits, except artist results (photo and logo) are rechecked with Apple after 30 days.
+Same response shape (empty `album`, no `releaseDate`, plus `logo`: a transparent HEIC wordmark when Apple has one, and `video`: the square motion artist HLS playlist when Apple has one), from the Apple Music catalog, with the same caching and limits, except artist results (photo, logo and video) are rechecked with Apple after 30 days.
 
 **Get Album Details**
 

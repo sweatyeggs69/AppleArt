@@ -372,7 +372,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             return new(StaticArtworkLookupStatus.NoMatch);
         }
 
-        string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/us/artists?ids={string.Join(',', artistIds)}&platform=web&extend=editorialArtwork";
+        string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/us/artists?ids={string.Join(',', artistIds)}&platform=web&extend=editorialArtwork,editorialVideo";
         var (status, json) = await GetCatalogJsonAsync(apiUrl, ct);
         if (status != StaticArtworkLookupStatus.Found)
         {
@@ -399,7 +399,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             }
 
             artworks.Add(new StaticArtwork(name, string.Empty, fullUrl, thumbnailUrl, pageUri.GetLeftPart(UriPartial.Path), null,
-                BuildLogoUrl(attrs?["editorialArtwork"]?["musicContentColorLogoTrimmed"])));
+                BuildLogoUrl(attrs?["editorialArtwork"]?["musicContentColorLogoTrimmed"]),
+                BuildMotionVideoUrl(attrs?["editorialVideo"]?["motionArtistSquare1x1"]?["video"])));
         }
 
         return artworks.Count > 0
@@ -433,6 +434,18 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             ? uri.GetLeftPart(UriPartial.Path)
             : null;
     }
+
+    // Motion video playlists are served from Apple's video CDN (e.g. mvod.itunes.apple.com), not mzstatic.
+    private static string? BuildMotionVideoUrl(JsonNode? video) =>
+        Uri.TryCreate(video?.ToString(), UriKind.Absolute, out Uri? uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        uri.IsDefaultPort &&
+        uri.UserInfo.Length == 0 &&
+        (uri.IdnHost.EndsWith(".apple.com", StringComparison.OrdinalIgnoreCase) ||
+         uri.IdnHost.EndsWith(".mzstatic.com", StringComparison.OrdinalIgnoreCase)) &&
+        uri.AbsolutePath.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
+            ? uri.AbsoluteUri
+            : null;
 
     // Catalog artwork URLs are templates such as ".../{w}x{h}bb.{f}" or ".../{w}x{h}{c}.{f}".
     private static bool TryBuildTemplateArtworkUrl(string? template, int size, out string url)
