@@ -108,6 +108,15 @@ public sealed class SqliteDatabase
             purge.CommandText = $"DELETE FROM metadata_resolutions WHERE status = {(int)MetadataResolutionStatus.NoMatch}; PRAGMA user_version = 2;";
             purge.ExecuteNonQuery();
         }
+
+        // v3: static album searches moved from the iTunes Search API to the Apple Music catalog, which
+        // lists newer releases. Drop the album no-matches iTunes left behind once.
+        if (version < 3)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = $"DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch} AND key NOT LIKE 'artist|%'; PRAGMA user_version = 3;";
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;
