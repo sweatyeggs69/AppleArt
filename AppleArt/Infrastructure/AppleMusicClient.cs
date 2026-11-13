@@ -319,6 +319,88 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         }
     }
 
+    public async Task<AppleAlbumDetailsResult> LookupAlbumDetailsAsync(string id, string storefront, CancellationToken ct)
+    {
+        string lookupUrl = ItunesLookupUrl + $"?id={Uri.EscapeDataString(id)}&entity=song&limit=200&country={Uri.EscapeDataString(storefront)}";
+
+        if (statusService.IsInBackoff())
+        {
+            Log.Warning("Global rate-limit backoff active. Skipping album details request for {Url}", lookupUrl);
+            return new(StaticArtworkLookupStatus.RateLimited);
+        }
+
+        await _appleMusicSemaphore.WaitAsync(ct);
+        try
+        {
+            Log.Information("Outgoing album details request: {Url}", lookupUrl);
+            using HttpResponseMessage response = await httpClient.GetAsync(lookupUrl, ct);
+
+            if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
+            {
+                Log.Warning("Rate Limit hit on iTunes API: {StatusCode}", response.StatusCode);
+                statusService.ReportRateLimit();
+                return new(StaticArtworkLookupStatus.RateLimited);
+            }
+
+            response.EnsureSuccessStatusCode();
+            statusService.ReportSuccess();
+
+            JsonNode? json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+            JsonNode? collection = null;
+            List<AppleAlbumTrack> tracks = [];
+
+            foreach (JsonNode? item in json?["results"]?.AsArray() ?? [])
+            {
+                if (item is null) continue;
+                string? wrapper = item["wrapperType"]?.ToString();
+                if (wrapper == "collection")
+                {
+                    collection ??= item;
+                }
+                else if (wrapper == "track" && item["kind"]?.ToString() == "song")
+                {
+                    string? title = item["trackName"]?.ToString();
+                    string? artist = item["artistName"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(artist)) continue;
+                    tracks.Add(new AppleAlbumTrack(
+                        title,
+                        artist,
+                        (int?)item["trackNumber"],
+                        (int?)item["discNumber"],
+                        (int?)item["trackTimeMillis"]));
+                }
+            }
+
+            string? albumTitle = collection?["collectionName"]?.ToString();
+            string? albumArtist = collection?["artistName"]?.ToString();
+            if (collection is null || string.IsNullOrWhiteSpace(albumTitle) || string.IsNullOrWhiteSpace(albumArtist) ||
+                !TryBuildArtworkUrl(collection["artworkUrl100"]?.ToString(), 1400, out string artworkUrl))
+            {
+                return new(StaticArtworkLookupStatus.NoMatch);
+            }
+
+            tracks.Sort((a, b) => (a.DiscNumber ?? 1, a.TrackNumber ?? 0).CompareTo((b.DiscNumber ?? 1, b.TrackNumber ?? 0)));
+
+            return new(StaticArtworkLookupStatus.Found, new AppleAlbumDetails(
+                albumTitle,
+                albumArtist,
+                collection["releaseDate"]?.ToString(),
+                collection["primaryGenreName"]?.ToString(),
+                collection["copyright"]?.ToString(),
+                artworkUrl,
+                tracks));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException or FormatException)
+        {
+            Log.Error("Album details request failed: {Message}", ex.Message);
+            return new(StaticArtworkLookupStatus.Error);
+        }
+        finally
+        {
+            _appleMusicSemaphore.Release();
+        }
+    }
+
     private const int MaxArtistCandidates = 3;
 
     public async Task<StaticArtworkLookupResult> SearchArtistArtworkAsync(string artist, CancellationToken ct)

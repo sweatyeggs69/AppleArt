@@ -71,6 +71,8 @@ try
     builder.Services.AddScoped<ArtworkService>();
     builder.Services.AddSingleton<StaticArtworkCache>();
     builder.Services.AddScoped<StaticArtworkService>();
+    builder.Services.AddMemoryCache();
+    builder.Services.AddSingleton<AlbumDetailsService>();
 
     builder.Services.AddCors(options =>
     {
@@ -340,6 +342,58 @@ try
         service.SetClient(ClientIdentity.Resolve(context));
         var (result, isCached) = await service.SearchArtistAsync(artist, ct);
         return StaticArtworkResponse(result, isCached, response);
+    }).RequireRateLimiting("ApiRateLimit");
+
+    app.MapGet("/api/v1/album/details", async (
+        [FromQuery] string? id,
+        [FromQuery] string? country,
+        [FromServices] AlbumDetailsService service,
+        [FromServices] ILogger<Program> logger,
+        HttpContext context,
+        HttpResponse response,
+        CancellationToken ct) =>
+    {
+        logger.LogInformation("Incoming Request: Album Details -> {Id} ({Country})", id, country);
+
+        string storefront = string.IsNullOrWhiteSpace(country) ? "us" : country.ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(id) || id.Length > 15 || !id.All(char.IsAsciiDigit))
+            return Results.BadRequest("A numeric Apple Music album id must be provided.");
+        if (storefront.Length != 2 || !storefront.All(char.IsAsciiLetterLower))
+            return Results.BadRequest("Country must be a two-letter storefront code.");
+
+        var (result, isCached) = await service.LookupAsync(id, storefront, ClientIdentity.Resolve(context), ct);
+        switch (result.Status)
+        {
+            case StaticArtworkLookupStatus.Found:
+                AppleAlbumDetails details = result.Details!;
+                response.Headers.CacheControl = "public, max-age=86400";
+                return Results.Ok(new
+                {
+                    title = details.Title,
+                    artist = details.Artist,
+                    releaseDate = details.ReleaseDate,
+                    genre = details.Genre,
+                    copyright = details.Copyright,
+                    artwork = details.ArtworkUrl,
+                    tracks = details.Tracks.Select(t => new
+                    {
+                        title = t.Title,
+                        artist = t.Artist,
+                        trackNumber = t.TrackNumber,
+                        discNumber = t.DiscNumber,
+                        durationMs = t.DurationMs
+                    }),
+                    isCached
+                });
+            case StaticArtworkLookupStatus.NoMatch:
+                response.Headers.CacheControl = "public, max-age=3600";
+                return Results.NotFound(new { message = "Album not found." });
+            case StaticArtworkLookupStatus.RateLimited:
+                return Throttled(response);
+            default:
+                response.Headers.CacheControl = "no-store";
+                return Results.Problem("Apple lookup failed.", statusCode: StatusCodes.Status502BadGateway);
+        }
     }).RequireRateLimiting("ApiRateLimit");
 
     app.MapGet("/api/v1/artwork/history", (HttpResponse response, [FromServices] ArtworkCache cache) =>

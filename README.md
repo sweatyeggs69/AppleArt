@@ -43,6 +43,12 @@ Both return `results`, closest album title first, each with `url` (1000x1000), `
 
 Same response shape (empty `album`, no `releaseDate`, plus `logo`: a transparent HEIC wordmark when Apple has one), from the Apple Music catalog, with the same caching and limits, except artist results (photo and logo) are rechecked with Apple after 30 days.
 
+**Get Album Details**
+
+```GET /api/v1/album/details?id=1440935467&country=us```
+
+The album (`title`, `artist`, `releaseDate`, `genre`, `copyright`, `artwork` at 1400x1400) and its `tracks` (`title`, `artist`, `trackNumber`, `discNumber`, `durationMs`) from an iTunes lookup. `id` is the number at the end of an `appleMusicUrl`, `country` defaults to `us`. Kept in memory for a day (no-matches for an hour) and counted against the Apple lookup limits.
+
 **Get Global History**
 
 ```GET /api/v1/artwork/history```
