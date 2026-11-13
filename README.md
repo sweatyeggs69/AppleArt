@@ -56,7 +56,7 @@ The album (`title`, `artist`, `releaseDate`, `genre`, `copyright`, `artwork` at 
 ## Origin Secret
 Set `ORIGIN_SECRET` to make `/api` require a matching `X-Origin-Secret` header (the Tromme API Worker adds it). Unset, the API is open.
 
-Requests that have to reach Apple (cache misses) are limited to `APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE` (default 20) per client and `APPLE_LOOKUPS_PER_MINUTE` (default 120) overall. Clients are identified by `CF-Connecting-IP` when the connection comes from a local or private address (the Cloudflare tunnel), otherwise by the connecting address; `X-Forwarded-For` is ignored.
+Requests that have to reach Apple (cache misses) are limited to `APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE` (default 20) per client and `APPLE_LOOKUPS_PER_MINUTE` (default 120) overall. Clients are identified by `CF-Connecting-IP` when the connection comes from a local or private address (the Cloudflare tunnel), otherwise by the connecting address; `X-Forwarded-For` is ignored. Requests relayed by the Tromme API Worker all share the Worker's `CF-Connecting-IP`, so when `PROXY_SECRET` is set and a request's `X-Origin-Secret` matches it, the Worker's `X-Client-IP` header identifies the client instead. Set `PROXY_SECRET` to the Worker's `ARTWORK_ORIGIN_SECRET`; unlike `ORIGIN_SECRET`, it never blocks direct callers.
 
 ## Caching Strategy
 This project is designed to be "Apple-friendly" to avoid rate limits:

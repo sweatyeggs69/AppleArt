@@ -220,6 +220,8 @@ try
         
         if (string.IsNullOrWhiteSpace(artist) || string.IsNullOrWhiteSpace(album))
             return Results.BadRequest("Artist and Album must be provided.");
+        if (artist.Length > MaxQueryLength || album.Length > MaxQueryLength || title?.Length > MaxQueryLength)
+            return Results.BadRequest("Artist, Album and Title must be 200 characters or fewer.");
         
         service.SetClient(ClientIdentity.Resolve(context));
         (ArtworkCacheEntry? entry, bool isCached) = await service.GetArtworkByDetailsAsync(artist, album, title, ct);
