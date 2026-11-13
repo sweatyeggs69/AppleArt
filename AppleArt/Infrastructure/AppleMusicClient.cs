@@ -282,7 +282,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                 string? viewUrl = item["collectionViewUrl"]?.ToString();
 
                 if (string.IsNullOrWhiteSpace(artistName) || string.IsNullOrWhiteSpace(albumName) ||
-                    !TryBuildArtworkUrl(artworkUrl, 3000, out string fullUrl) ||
+                    !TryBuildArtworkUrl(artworkUrl, 1000, out string fullUrl) ||
                     !TryBuildArtworkUrl(artworkUrl, 600, out string thumbnailUrl) ||
                     !Uri.TryCreate(viewUrl, UriKind.Absolute, out Uri? viewUri) ||
                     !AppleMusicUrl.TryParse(viewUri.GetLeftPart(UriPartial.Path), out _))
