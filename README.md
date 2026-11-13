@@ -37,6 +37,12 @@ Base URL: https://amaa.tromme.app
 
 Both return `results`, closest album title first, each with `url` (1000x1000), `thumbnail` (600x600), `artist`, `album`, `appleMusicUrl` and `releaseDate`. Lookups go to the iTunes Search API and are cached in memory for 7 days (no match: 1 day, exact query only), and count against the same Apple lookup limits.
 
+**Get Artist Images**
+
+```GET /api/v1/artwork/artist/search?artist=Gorillaz```
+
+Same response shape (empty `album`, no `releaseDate`), from the Apple Music catalog, with the same caching and limits.
+
 **Get Global History**
 
 ```GET /api/v1/artwork/history```

@@ -15,4 +15,6 @@ public interface IAppleMusicClient
     Task<StaticArtworkLookupResult> SearchStaticArtworkAsync(string artist, string album, CancellationToken ct);
 
     Task<StaticArtworkLookupResult> LookupStaticArtworkAsync(AppleMusicCatalogTarget target, CancellationToken ct);
+
+    Task<StaticArtworkLookupResult> SearchArtistArtworkAsync(string artist, CancellationToken ct);
 }

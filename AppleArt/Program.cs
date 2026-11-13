@@ -322,6 +322,26 @@ try
         return StaticArtworkResponse(result, isCached, response);
     }).RequireRateLimiting("ApiRateLimit");
 
+    app.MapGet("/api/v1/artwork/artist/search", async (
+        [FromQuery] string? artist,
+        [FromServices] StaticArtworkService service,
+        [FromServices] ILogger<Program> logger,
+        HttpContext context,
+        HttpResponse response,
+        CancellationToken ct) =>
+    {
+        logger.LogInformation("Incoming Request: Artist Search -> Artist: {Artist}", artist);
+
+        if (string.IsNullOrWhiteSpace(artist))
+            return Results.BadRequest("Artist must be provided.");
+        if (artist.Length > MaxQueryLength)
+            return Results.BadRequest("Artist must be 200 characters or fewer.");
+
+        service.SetClient(ClientIdentity.Resolve(context));
+        var (result, isCached) = await service.SearchArtistAsync(artist, ct);
+        return StaticArtworkResponse(result, isCached, response);
+    }).RequireRateLimiting("ApiRateLimit");
+
     app.MapGet("/api/v1/artwork/history", (HttpResponse response, [FromServices] ArtworkCache cache) =>
     {
         response.Headers.CacheControl = "public, max-age=86400";

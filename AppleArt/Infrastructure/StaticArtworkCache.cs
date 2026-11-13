@@ -14,6 +14,8 @@ public sealed class StaticArtworkCache : IDisposable
     public static string SearchKey(string artist, string album) =>
         $"search|{artist.Trim().ToLowerInvariant()}|{album.Trim().ToLowerInvariant()}";
 
+    public static string ArtistKey(string artist) => $"artist|{artist.Trim().ToLowerInvariant()}";
+
     public static string LookupKey(AppleMusicCatalogTarget target) => $"lookup|{target.Storefront}|{target.Id}";
 
     public bool TryGet(string key, out StaticArtworkLookupResult result) => _cache.TryGetValue(key, out result);

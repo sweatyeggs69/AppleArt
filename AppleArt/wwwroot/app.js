@@ -23,6 +23,9 @@ const ui = {
     selectedVariantBadge: document.getElementById('selectedVariantBadge'),
     kindAnimated: document.getElementById('kindAnimated'),
     kindStatic: document.getElementById('kindStatic'),
+    kindArtist: document.getElementById('kindArtist'),
+    modeTabs: document.getElementById('modeTabs'),
+    groupAlbum: document.getElementById('groupAlbum'),
     groupTitle: document.getElementById('groupTitle'),
     staticResults: document.getElementById('staticResults')
 };
@@ -66,7 +69,11 @@ function setKind(kind) {
 
     ui.kindAnimated.className = kind === 'animated' ? activeClass : inactiveClass;
     ui.kindStatic.className = kind === 'static' ? activeClass : inactiveClass;
-    ui.groupTitle.classList.toggle('hidden', kind === 'static');
+    ui.kindArtist.className = kind === 'artist' ? activeClass : inactiveClass;
+    ui.groupTitle.classList.toggle('hidden', kind !== 'animated');
+    ui.groupAlbum.classList.toggle('hidden', kind === 'artist');
+    ui.modeTabs.classList.toggle('hidden', kind === 'artist');
+    if (kind === 'artist') setMode('details');
 }
 
 function clearResults() {
@@ -95,7 +102,7 @@ function renderStaticResults(results) {
 
         const image = document.createElement('img');
         image.src = item.thumbnail;
-        image.alt = item.album;
+        image.alt = item.album || item.artist;
         image.loading = 'lazy';
         image.className = 'w-full aspect-square object-cover bg-gray-800';
 
@@ -106,12 +113,17 @@ function renderStaticResults(results) {
         album.className = 'font-bold text-sm text-white truncate';
         album.textContent = item.album;
 
-        const detail = document.createElement('p');
-        detail.className = 'text-xs text-gray-400 truncate';
-        const year = item.releaseDate ? new Date(item.releaseDate).getUTCFullYear() : null;
-        detail.textContent = year ? `${item.artist} · ${year}` : item.artist;
+        if (item.album) {
+            const detail = document.createElement('p');
+            detail.className = 'text-xs text-gray-400 truncate';
+            const year = item.releaseDate ? new Date(item.releaseDate).getUTCFullYear() : null;
+            detail.textContent = year ? `${item.artist} · ${year}` : item.artist;
+            caption.append(album, detail);
+        } else {
+            album.textContent = item.artist;
+            caption.append(album);
+        }
 
-        caption.append(album, detail);
         tile.append(image, caption);
         ui.staticResults.appendChild(tile);
     });
@@ -395,6 +407,7 @@ async function fetchGlobalHistory() {
 
 ui.kindAnimated.onclick = () => setKind('animated');
 ui.kindStatic.onclick = () => setKind('static');
+ui.kindArtist.onclick = () => setKind('artist');
 ui.tabDetails.onclick = () => setMode('details');
 ui.tabUrl.onclick = () => setMode('url');
 if (ui.variantSquareBtn) {
@@ -414,11 +427,16 @@ ui.form.addEventListener('submit', async (e) => {
     ui.submitBtn.disabled = true;
     ui.spinner.classList.remove('hidden');
 
-    const isStatic = state.currentKind === 'static';
+    const isArtist = state.currentKind === 'artist';
+    const isStatic = state.currentKind === 'static' || isArtist;
     const basePath = isStatic ? '/api/v1/artwork/static' : '/api/v1/artwork';
     let apiUrl = '';
 
-    if (state.currentMode === 'details') {
+    if (isArtist) {
+        const artist = document.getElementById('artistInput').value.trim();
+        if (!artist) return showError("Please enter an Artist.");
+        apiUrl = `/api/v1/artwork/artist/search?${new URLSearchParams({ artist })}`;
+    } else if (state.currentMode === 'details') {
         const artist = document.getElementById('artistInput').value.trim();
         const album = document.getElementById('albumInput').value.trim();
         const title = document.getElementById('titleInput').value.trim();

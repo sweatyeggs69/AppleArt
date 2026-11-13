@@ -24,6 +24,9 @@ public class StaticArtworkService(
     public Task<(StaticArtworkLookupResult Result, bool IsCached)> LookupAsync(AppleMusicCatalogTarget target, CancellationToken ct) =>
         GetAsync(StaticArtworkCache.LookupKey(target), () => appleMusicClient.LookupStaticArtworkAsync(target, ct), ct);
 
+    public Task<(StaticArtworkLookupResult Result, bool IsCached)> SearchArtistAsync(string artist, CancellationToken ct) =>
+        GetAsync(StaticArtworkCache.ArtistKey(artist), () => appleMusicClient.SearchArtistArtworkAsync(artist, ct), ct);
+
     private async Task<(StaticArtworkLookupResult Result, bool IsCached)> GetAsync(
         string key, Func<Task<StaticArtworkLookupResult>> fetch, CancellationToken ct)
     {
