@@ -28,6 +28,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
 
     private const string AppleMusicSearchUrl = "https://music.apple.com/us/search?term=";
     private const string ItunesSearchUrl = "https://itunes.apple.com/search";
+    private const string ItunesLookupUrl = "https://itunes.apple.com/lookup";
     
     public async Task<AppleMusicWebSearchResult> GetAppleMusicUrlViaWebSearchAsync(string artist, string album, string? title = null, CancellationToken ct = default)
     {
@@ -206,6 +207,139 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         {
             _appleMusicSemaphore.Release();
         }
+    }
+
+    private const int MaxStaticArtworks = 10;
+
+    public async Task<StaticArtworkLookupResult> SearchStaticArtworkAsync(string artist, string album, CancellationToken ct)
+    {
+        string query = Uri.EscapeDataString($"{artist} {album}");
+        string searchUrl = ItunesSearchUrl + $"?term={query}&entity=album&limit=50&explicit=Yes";
+
+        StaticArtworkLookupResult result = await FetchStaticArtworkAsync(searchUrl, ct);
+        if (result.Status != StaticArtworkLookupStatus.Found)
+        {
+            return result;
+        }
+
+        // iTunes matches loosely, so keep only the requested artist and albums containing the requested title.
+        List<StaticArtwork> matches = result.Artworks!
+            .Select(artwork => (Artwork: artwork, Rank: RankAlbumMatch(artwork.Album, album)))
+            .Where(match => match.Rank >= 0 && CacheKeyNormalizer.ArtistsMatch(artist, match.Artwork.Artist))
+            .OrderBy(match => match.Rank)
+            .Select(match => match.Artwork)
+            .Take(MaxStaticArtworks)
+            .ToList();
+
+        return matches.Count > 0
+            ? new(StaticArtworkLookupStatus.Found, matches)
+            : new(StaticArtworkLookupStatus.NoMatch);
+    }
+
+    public Task<StaticArtworkLookupResult> LookupStaticArtworkAsync(AppleMusicCatalogTarget target, CancellationToken ct)
+    {
+        string lookupUrl = ItunesLookupUrl + $"?id={Uri.EscapeDataString(target.Id)}&entity=album&country={target.Storefront}";
+        return FetchStaticArtworkAsync(lookupUrl, ct);
+    }
+
+    private async Task<StaticArtworkLookupResult> FetchStaticArtworkAsync(string requestUrl, CancellationToken ct)
+    {
+        if (statusService.IsInBackoff())
+        {
+            Log.Warning("Global rate-limit backoff active. Skipping static artwork request for {Url}", requestUrl);
+            return new(StaticArtworkLookupStatus.RateLimited);
+        }
+
+        await _appleMusicSemaphore.WaitAsync(ct);
+        try
+        {
+            Log.Information("Outgoing static artwork request: {Url}", requestUrl);
+            using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, ct);
+
+            if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
+            {
+                Log.Warning("Rate Limit hit on iTunes API: {StatusCode}", response.StatusCode);
+                statusService.ReportRateLimit();
+                return new(StaticArtworkLookupStatus.RateLimited);
+            }
+
+            response.EnsureSuccessStatusCode();
+            statusService.ReportSuccess();
+
+            JsonNode? json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct));
+            List<StaticArtwork> artworks = [];
+
+            foreach (JsonNode? item in json?["results"]?.AsArray() ?? [])
+            {
+                if (item?["wrapperType"]?.ToString() != "collection")
+                {
+                    continue;
+                }
+
+                string? artistName = item["artistName"]?.ToString();
+                string? albumName = item["collectionName"]?.ToString();
+                string? artworkUrl = item["artworkUrl100"]?.ToString();
+                string? viewUrl = item["collectionViewUrl"]?.ToString();
+
+                if (string.IsNullOrWhiteSpace(artistName) || string.IsNullOrWhiteSpace(albumName) ||
+                    !TryBuildArtworkUrl(artworkUrl, 3000, out string fullUrl) ||
+                    !TryBuildArtworkUrl(artworkUrl, 600, out string thumbnailUrl) ||
+                    !Uri.TryCreate(viewUrl, UriKind.Absolute, out Uri? viewUri) ||
+                    !AppleMusicUrl.TryParse(viewUri.GetLeftPart(UriPartial.Path), out _))
+                {
+                    continue;
+                }
+
+                if (artworks.Any(a => a.Url == fullUrl))
+                {
+                    continue;
+                }
+
+                artworks.Add(new StaticArtwork(
+                    artistName,
+                    albumName,
+                    fullUrl,
+                    thumbnailUrl,
+                    viewUri.GetLeftPart(UriPartial.Path),
+                    item["releaseDate"]?.ToString()));
+            }
+
+            return artworks.Count > 0
+                ? new(StaticArtworkLookupStatus.Found, artworks)
+                : new(StaticArtworkLookupStatus.NoMatch);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            Log.Error("Static artwork request failed: {Message}", ex.Message);
+            return new(StaticArtworkLookupStatus.Error);
+        }
+        finally
+        {
+            _appleMusicSemaphore.Release();
+        }
+    }
+
+    // Apple serves any size up to the source image by rewriting the trailing "{w}x{h}bb.jpg" segment.
+    private static bool TryBuildArtworkUrl(string? artworkUrl, int size, out string url)
+    {
+        url = string.Empty;
+
+        if (!Uri.TryCreate(artworkUrl, UriKind.Absolute, out Uri? uri) ||
+            uri.Scheme != Uri.UriSchemeHttps ||
+            !uri.IdnHost.EndsWith(".mzstatic.com", StringComparison.OrdinalIgnoreCase) ||
+            uri.Query.Length > 0)
+        {
+            return false;
+        }
+
+        int lastSlash = uri.AbsolutePath.LastIndexOf('/');
+        if (lastSlash <= 0)
+        {
+            return false;
+        }
+
+        url = $"https://{uri.IdnHost}{uri.AbsolutePath[..lastSlash]}/{size}x{size}bb.jpg";
+        return true;
     }
 
     private async Task<string?> GetBearerTokenAsync(string albumUrl, CancellationToken ct)

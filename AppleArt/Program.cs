@@ -69,6 +69,8 @@ try
     .AddHttpMessageHandler<AppleEgressHandler>();
 
     builder.Services.AddScoped<ArtworkService>();
+    builder.Services.AddSingleton<StaticArtworkCache>();
+    builder.Services.AddScoped<StaticArtworkService>();
 
     builder.Services.AddCors(options =>
     {
@@ -106,6 +108,8 @@ try
             });
         });
     });
+
+    const int MaxQueryLength = 200;
 
     var app = builder.Build();
 
@@ -278,6 +282,46 @@ try
         return Results.NotFound(new { message = "No animated artwork found." });
     }).RequireRateLimiting("ApiRateLimit");
     
+    app.MapGet("/api/v1/artwork/static/search", async (
+        [FromQuery] string? artist,
+        [FromQuery] string? album,
+        [FromServices] StaticArtworkService service,
+        [FromServices] ILogger<Program> logger,
+        HttpContext context,
+        HttpResponse response,
+        CancellationToken ct) =>
+    {
+        logger.LogInformation("Incoming Request: Static Search -> Artist: {Artist}, Album: {Album}", artist, album);
+
+        if (string.IsNullOrWhiteSpace(artist) || string.IsNullOrWhiteSpace(album))
+            return Results.BadRequest("Artist and Album must be provided.");
+        if (artist.Length > MaxQueryLength || album.Length > MaxQueryLength)
+            return Results.BadRequest("Artist and Album must be 200 characters or fewer.");
+
+        service.SetClient(ClientIdentity.Resolve(context));
+        var (result, isCached) = await service.SearchAsync(artist, album, ct);
+        return StaticArtworkResponse(result, isCached, response);
+    }).RequireRateLimiting("ApiRateLimit");
+
+    app.MapGet("/api/v1/artwork/static/url", async (
+        [FromQuery] string? url,
+        [FromServices] StaticArtworkService service,
+        [FromServices] ILogger<Program> logger,
+        HttpContext context,
+        HttpResponse response,
+        CancellationToken ct) =>
+    {
+        logger.LogInformation("Incoming Request: Static URL -> {AppleMusicUrl}", url);
+
+        // iTunes lookup only knows albums; playlist covers are not offered.
+        if (!AppleMusicUrl.TryParse(url, out AppleMusicCatalogTarget target) || target.ResourceType != "albums")
+            return Results.BadRequest("A valid Apple Music album URL must be provided.");
+
+        service.SetClient(ClientIdentity.Resolve(context));
+        var (result, isCached) = await service.LookupAsync(target, ct);
+        return StaticArtworkResponse(result, isCached, response);
+    }).RequireRateLimiting("ApiRateLimit");
+
     app.MapGet("/api/v1/artwork/history", (HttpResponse response, [FromServices] ArtworkCache cache) =>
     {
         response.Headers.CacheControl = "public, max-age=86400";
@@ -294,6 +338,36 @@ try
     }).RequireRateLimiting("ApiRateLimit");
 
     app.Run();
+
+    static IResult StaticArtworkResponse(StaticArtworkLookupResult result, bool isCached, HttpResponse response)
+    {
+        switch (result.Status)
+        {
+            case StaticArtworkLookupStatus.Found:
+                response.Headers.CacheControl = "public, max-age=86400";
+                return Results.Ok(new
+                {
+                    results = result.Artworks!.Select(a => new
+                    {
+                        artist = a.Artist,
+                        album = a.Album,
+                        url = a.Url,
+                        thumbnail = a.ThumbnailUrl,
+                        appleMusicUrl = a.AppleMusicUrl,
+                        releaseDate = a.ReleaseDate
+                    }),
+                    isCached
+                });
+            case StaticArtworkLookupStatus.NoMatch:
+                response.Headers.CacheControl = "public, max-age=3600";
+                return Results.NotFound(new { message = "No artwork found." });
+            case StaticArtworkLookupStatus.RateLimited:
+                return Throttled(response);
+            default:
+                response.Headers.CacheControl = "no-store";
+                return Results.Problem("Apple lookup failed.", statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
 
     static IResult Throttled(HttpResponse response)
     {

@@ -3,7 +3,7 @@
 [![Website](https://img.shields.io/badge/Public_Instance-blue?style=for-the-badge)](https://amaa.tromme.app)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/sweatyeggs69/AppleArt/docker-publish.yml?style=for-the-badge)](https://github.com/sweatyeggs69/AppleArt/actions)
 
-A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8). Supports both square and tall cover variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend. Powers animated artwork in [Tromme](https://github.com/sweatyeggs69/Tromme).
+A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8) and static album covers. Supports both square and tall animated variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend. Powers animated artwork in [Tromme](https://github.com/sweatyeggs69/Tromme).
 
 **Test it out:** [https://amaa.tromme.app](https://amaa.tromme.app)
 
@@ -26,6 +26,16 @@ Base URL: https://amaa.tromme.app
 **Get Artwork by URL**
 
 ```GET /api/v1/artwork/url?url=https://music.apple.com/us/album/...```
+
+**Get Static Artwork by Details**
+
+```GET /api/v1/artwork/static/search?artist=Gorillaz&album=Plastic+Beach```
+
+**Get Static Artwork by URL** (albums only)
+
+```GET /api/v1/artwork/static/url?url=https://music.apple.com/us/album/...```
+
+Both return `results`, closest album title first, each with `url` (3000x3000), `thumbnail` (600x600), `artist`, `album`, `appleMusicUrl` and `releaseDate`. Lookups go to the iTunes Search API and are cached in memory for 7 days (no match: 1 day, exact query only), and count against the same Apple lookup limits.
 
 **Get Global History**
 

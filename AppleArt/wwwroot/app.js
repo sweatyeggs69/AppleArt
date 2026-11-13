@@ -20,10 +20,15 @@ const ui = {
     variantSquareBtn: document.getElementById('variantSquareBtn'),
     variantTallBtn: document.getElementById('variantTallBtn'),
     coverVariantSelected: document.getElementById('coverVariantSelected'),
-    selectedVariantBadge: document.getElementById('selectedVariantBadge')
+    selectedVariantBadge: document.getElementById('selectedVariantBadge'),
+    kindAnimated: document.getElementById('kindAnimated'),
+    kindStatic: document.getElementById('kindStatic'),
+    groupTitle: document.getElementById('groupTitle'),
+    staticResults: document.getElementById('staticResults')
 };
 
 let state = {
+    currentKind: 'animated',
     currentMode: 'details',
     mainHls: null,
     historyHlsInstances: [],
@@ -52,6 +57,66 @@ function setMode(mode) {
         ui.groupUrl.classList.remove('hidden');
         ui.groupDetails.classList.add('hidden');
     }
+}
+
+function setKind(kind) {
+    state.currentKind = kind;
+    const activeClass = "flex-1 py-2 text-sm font-medium rounded-lg transition-all bg-gradient-to-r from-pink-600 to-orange-500 text-white shadow-lg";
+    const inactiveClass = "flex-1 py-2 text-sm font-medium rounded-lg transition-all text-gray-400 hover:text-white";
+
+    ui.kindAnimated.className = kind === 'animated' ? activeClass : inactiveClass;
+    ui.kindStatic.className = kind === 'static' ? activeClass : inactiveClass;
+    ui.groupTitle.classList.toggle('hidden', kind === 'static');
+}
+
+function clearResults() {
+    ui.statusMessage.classList.add('hidden');
+    ui.videoContainer.classList.add('hidden');
+    ui.rawLink.classList.add('hidden');
+    ui.artworkMetadata.classList.add('hidden');
+    ui.staticResults.classList.add('hidden');
+    ui.staticResults.replaceChildren();
+    if (state.mainHls) {
+        state.mainHls.destroy();
+        state.mainHls = null;
+    }
+    ui.videoElement.removeAttribute('src');
+}
+
+function renderStaticResults(results) {
+    ui.staticResults.replaceChildren();
+
+    results.forEach(item => {
+        const tile = document.createElement('a');
+        tile.href = item.url;
+        tile.target = '_blank';
+        tile.rel = 'noopener';
+        tile.className = 'block rounded-lg overflow-hidden border border-gray-700 bg-gray-900/60 hover:border-pink-500 transition-colors';
+
+        const image = document.createElement('img');
+        image.src = item.thumbnail;
+        image.alt = item.album;
+        image.loading = 'lazy';
+        image.className = 'w-full aspect-square object-cover bg-gray-800';
+
+        const caption = document.createElement('div');
+        caption.className = 'p-2';
+
+        const album = document.createElement('p');
+        album.className = 'font-bold text-xs text-white truncate';
+        album.textContent = item.album;
+
+        const detail = document.createElement('p');
+        detail.className = 'text-[11px] text-gray-400 truncate';
+        const year = item.releaseDate ? new Date(item.releaseDate).getUTCFullYear() : null;
+        detail.textContent = year ? `${item.artist} · ${year}` : item.artist;
+
+        caption.append(album, detail);
+        tile.append(image, caption);
+        ui.staticResults.appendChild(tile);
+    });
+
+    ui.staticResults.classList.remove('hidden');
 }
 
 function showError(msg) {
@@ -303,6 +368,8 @@ async function fetchGlobalHistory() {
             `;
 
             li.onclick = () => {
+                clearResults();
+                setKind('animated');
                 document.getElementById('artistInput').value = item.artist;
                 document.getElementById('albumInput').value = item.album;
 
@@ -326,6 +393,8 @@ async function fetchGlobalHistory() {
     }
 }
 
+ui.kindAnimated.onclick = () => setKind('animated');
+ui.kindStatic.onclick = () => setKind('static');
 ui.tabDetails.onclick = () => setMode('details');
 ui.tabUrl.onclick = () => setMode('url');
 if (ui.variantSquareBtn) {
@@ -341,13 +410,12 @@ if (ui.variantTallBtn) {
 ui.form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    ui.statusMessage.classList.add('hidden');
-    ui.videoContainer.classList.add('hidden');
-    ui.rawLink.classList.add('hidden');
-    ui.artworkMetadata.classList.add('hidden');
+    clearResults();
     ui.submitBtn.disabled = true;
     ui.spinner.classList.remove('hidden');
 
+    const isStatic = state.currentKind === 'static';
+    const basePath = isStatic ? '/api/v1/artwork/static' : '/api/v1/artwork';
     let apiUrl = '';
 
     if (state.currentMode === 'details') {
@@ -358,23 +426,30 @@ ui.form.addEventListener('submit', async (e) => {
         if (!artist || !album) return showError("Please enter both Artist and Album.");
 
         const queryParams = { artist, album };
-        if (title) queryParams.title = title;
-        apiUrl = `/api/v1/artwork/search?${new URLSearchParams(queryParams)}`;
+        if (title && !isStatic) queryParams.title = title;
+        apiUrl = `${basePath}/search?${new URLSearchParams(queryParams)}`;
     } else {
         const url = document.getElementById('urlInput').value.trim();
         if (!url || !url.includes('music.apple.com')) return showError("Please enter a valid Apple Music URL.");
-        apiUrl = `/api/v1/artwork/url?${new URLSearchParams({ url })}`;
+        apiUrl = `${basePath}/url?${new URLSearchParams({ url })}`;
     }
 
     try {
         const response = await fetch(apiUrl);
         if (!response.ok) {
-            if (response.status === 404) throw new Error('No animated artwork found.');
+            if (response.status === 404) throw new Error(isStatic ? 'No artwork found.' : 'No animated artwork found.');
+            if (response.status === 400 && isStatic && state.currentMode === 'url') throw new Error('Static artwork needs an album URL.');
+            if (response.status === 429) throw new Error('Too many new lookups. Please slow down.');
             throw new Error('Server error occurred.');
         }
 
         const data = await response.json();
-        
+
+        if (isStatic) {
+            renderStaticResults(data.results);
+            return;
+        }
+
         await applyArtworkData(data, data.isCached);
         fetchGlobalHistory();
 

@@ -11,4 +11,8 @@ public interface IAppleMusicClient
         CancellationToken ct = default);
     
     Task<AppleMusicPageParseResult> ParseAppleMusicPageAsync(AppleMusicCatalogTarget target, CancellationToken ct);
+
+    Task<StaticArtworkLookupResult> SearchStaticArtworkAsync(string artist, string album, CancellationToken ct);
+
+    Task<StaticArtworkLookupResult> LookupStaticArtworkAsync(AppleMusicCatalogTarget target, CancellationToken ct);
 }
