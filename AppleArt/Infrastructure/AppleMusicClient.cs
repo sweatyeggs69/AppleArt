@@ -421,8 +421,10 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                 string? template = attrs?["artwork"]?["url"]?.ToString();
                 string? pageUrl = attrs?["url"]?.ToString();
 
+                // Artists without a photo get one of their album covers, served from a "Music…" path.
                 if (string.IsNullOrWhiteSpace(name) ||
                     !TryBuildTemplateArtworkUrl(template, 1000, out string fullUrl) ||
+                    new Uri(fullUrl).AbsolutePath.StartsWith("/image/thumb/Music", StringComparison.OrdinalIgnoreCase) ||
                     !TryBuildTemplateArtworkUrl(template, 600, out string thumbnailUrl) ||
                     !Uri.TryCreate(pageUrl, UriKind.Absolute, out Uri? pageUri) ||
                     !string.Equals(pageUri.IdnHost, AppleMusicUrl.Host, StringComparison.OrdinalIgnoreCase))
