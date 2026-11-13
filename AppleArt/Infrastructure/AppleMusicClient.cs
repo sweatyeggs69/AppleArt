@@ -451,7 +451,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         }
     }
 
-    // The logo is a white wordmark; requesting PNG keeps its transparent background.
+    // The logo is a white wordmark; HEIC keeps its transparent background at the smallest size.
     private static string? BuildLogoUrl(JsonNode? logo)
     {
         string? template = logo?["url"]?.ToString();
@@ -464,10 +464,10 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         int targetWidth = Math.Min(width, 1000);
         int targetHeight = Math.Max(1, (int)Math.Round(targetWidth * (double)height / width));
         string filled = template.Replace("{w}", targetWidth.ToString()).Replace("{h}", targetHeight.ToString())
-            .Replace("{c}", "bb").Replace("{f}", "png");
+            .Replace("{c}", "bb").Replace("{f}", "heic");
         if (filled.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
         {
-            filled = filled[..^4] + ".png";
+            filled = filled[..^4] + ".heic";
         }
 
         return Uri.TryCreate(filled, UriKind.Absolute, out Uri? uri) &&

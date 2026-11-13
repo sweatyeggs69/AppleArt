@@ -41,7 +41,7 @@ Both return `results`, closest album title first, each with `url` (1000x1000), `
 
 ```GET /api/v1/artwork/artist/search?artist=Gorillaz```
 
-Same response shape (empty `album`, no `releaseDate`, plus `logo`: a transparent PNG wordmark when Apple has one), from the Apple Music catalog, with the same caching and limits.
+Same response shape (empty `album`, no `releaseDate`, plus `logo`: a transparent HEIC wordmark when Apple has one), from the Apple Music catalog, with the same caching and limits.
 
 **Get Global History**
 
