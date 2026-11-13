@@ -388,7 +388,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             return new(StaticArtworkLookupStatus.Error);
         }
 
-        string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/us/artists?ids={string.Join(',', artistIds)}&platform=web";
+        string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/us/artists?ids={string.Join(',', artistIds)}&platform=web&extend=editorialArtwork";
 
         await _appleMusicSemaphore.WaitAsync(ct);
         try
@@ -432,7 +432,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                     continue;
                 }
 
-                artworks.Add(new StaticArtwork(name, string.Empty, fullUrl, thumbnailUrl, pageUri.GetLeftPart(UriPartial.Path), null));
+                artworks.Add(new StaticArtwork(name, string.Empty, fullUrl, thumbnailUrl, pageUri.GetLeftPart(UriPartial.Path), null,
+                    BuildLogoUrl(attrs?["editorialArtwork"]?["musicContentColorLogoTrimmed"])));
             }
 
             return artworks.Count > 0
@@ -448,6 +449,33 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         {
             _appleMusicSemaphore.Release();
         }
+    }
+
+    // The logo is a white wordmark; requesting PNG keeps its transparent background.
+    private static string? BuildLogoUrl(JsonNode? logo)
+    {
+        string? template = logo?["url"]?.ToString();
+        if (logo?["width"]?.GetValue<int>() is not int width || logo["height"]?.GetValue<int>() is not int height ||
+            width <= 0 || height <= 0 || string.IsNullOrWhiteSpace(template))
+        {
+            return null;
+        }
+
+        int targetWidth = Math.Min(width, 1000);
+        int targetHeight = Math.Max(1, (int)Math.Round(targetWidth * (double)height / width));
+        string filled = template.Replace("{w}", targetWidth.ToString()).Replace("{h}", targetHeight.ToString())
+            .Replace("{c}", "bb").Replace("{f}", "png");
+        if (filled.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+        {
+            filled = filled[..^4] + ".png";
+        }
+
+        return Uri.TryCreate(filled, UriKind.Absolute, out Uri? uri) &&
+               uri.Scheme == Uri.UriSchemeHttps &&
+               uri.IdnHost.EndsWith(".mzstatic.com", StringComparison.OrdinalIgnoreCase) &&
+               uri.Query.Length == 0 && !filled.Contains('{')
+            ? uri.GetLeftPart(UriPartial.Path)
+            : null;
     }
 
     // Catalog artwork URLs are templates such as ".../{w}x{h}bb.{f}" or ".../{w}x{h}{c}.{f}".

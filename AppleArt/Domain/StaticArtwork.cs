@@ -4,5 +4,6 @@ public record StaticArtwork(
     string Url,
     string ThumbnailUrl,
     string AppleMusicUrl,
-    string? ReleaseDate
+    string? ReleaseDate,
+    string? LogoUrl = null
 );
