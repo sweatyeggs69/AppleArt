@@ -35,7 +35,7 @@ Base URL: https://amaa.tromme.app
 
 ```GET /api/v1/artwork/static/url?url=https://music.apple.com/us/album/...```
 
-Both return `results`, closest album title first, each with `url` (1000x1000), `thumbnail` (600x600), `artist`, `album`, `appleMusicUrl` and `releaseDate`. Lookups go to the iTunes Search API and are cached in memory for 7 days (no match: 1 day, exact query only), and count against the same Apple lookup limits.
+Both return `results`, closest album title first, each with `url` (1000x1000), `thumbnail` (600x600), `artist`, `album`, `appleMusicUrl` and `releaseDate`. Lookups go to the iTunes Search API and are saved in the SQLite cache like animated artwork: found results are kept, no-matches expire after 30 days (exact query only), and count against the same Apple lookup limits.
 
 **Get Artist Images**
 

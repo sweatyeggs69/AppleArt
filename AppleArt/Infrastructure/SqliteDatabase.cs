@@ -68,6 +68,13 @@ public sealed class SqliteDatabase
                 last_resolved            INTEGER NOT NULL
             ) WITHOUT ROWID;
 
+            CREATE TABLE IF NOT EXISTS static_artworks (
+                key          TEXT    NOT NULL PRIMARY KEY,
+                status       INTEGER NOT NULL,
+                results_json TEXT,
+                last_fetched INTEGER NOT NULL
+            ) WITHOUT ROWID;
+
             CREATE TABLE IF NOT EXISTS legacy_imports (
                 name        TEXT    NOT NULL PRIMARY KEY,
                 source_file TEXT    NOT NULL,

@@ -112,14 +112,16 @@ public sealed class ArtworkCache(SqliteDatabase database)
                 SELECT COALESCE(SUM(search_count), 0),
                        COALESCE(SUM(download_count), 0),
                        COUNT(*),
-                       COALESCE(SUM(is_animated), 0)
+                       COALESCE(SUM(is_animated), 0),
+                       (SELECT COUNT(*) FROM static_artworks WHERE status = $found)
                 FROM artworks
                 """;
+            command.Parameters.AddWithValue("$found", (int)StaticArtworkLookupStatus.Found);
 
             using var reader = command.ExecuteReader();
             reader.Read();
 
-            _stats = new ArtworkCacheStats(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3));
+            _stats = new ArtworkCacheStats(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2) + reader.GetInt64(4), reader.GetInt64(3));
             _statsComputedAt = DateTime.UtcNow;
             return _stats;
         }
