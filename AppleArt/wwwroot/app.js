@@ -100,14 +100,14 @@ function renderStaticResults(results) {
         image.className = 'w-full aspect-square object-cover bg-gray-800';
 
         const caption = document.createElement('div');
-        caption.className = 'p-2';
+        caption.className = 'p-3';
 
         const album = document.createElement('p');
-        album.className = 'font-bold text-xs text-white truncate';
+        album.className = 'font-bold text-sm text-white truncate';
         album.textContent = item.album;
 
         const detail = document.createElement('p');
-        detail.className = 'text-[11px] text-gray-400 truncate';
+        detail.className = 'text-xs text-gray-400 truncate';
         const year = item.releaseDate ? new Date(item.releaseDate).getUTCFullYear() : null;
         detail.textContent = year ? `${item.artist} · ${year}` : item.artist;
 
