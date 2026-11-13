@@ -345,7 +345,7 @@ try
     app.MapGet("/api/v1/artwork/history", (HttpResponse response, [FromServices] ArtworkCache cache) =>
     {
         response.Headers.CacheControl = "public, max-age=86400";
-        var recent = cache.GetRecentSearches().Select(x => new 
+        var recent = cache.GetRecentSearches(18).Select(x => new 
         {
             artist = x.Artist,
             album = x.Album,

@@ -13,7 +13,7 @@ A lightweight tool to fetch and display Apple Music’s animated album covers (H
 - Multiple Variants: Supports both the standard square cover and the taller variant used for lock screen & expanded artwork views.
 - API: Provides a simple REST API for programmatic access to the artwork data.
 - Cache: Saves results in local cache files. It only hits Apple's servers once per album.
-- Web UI: Minimal page for manually searching and previewing artwork (hls.js), meant for debugging.
+- Web UI: Minimal page showing the most recently cached animated artwork and cache stats.
 
 ## API Reference
 

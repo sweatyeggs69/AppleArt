@@ -149,11 +149,3 @@ body {
     color: #9ca3af !important;
     box-shadow: none !important;
 }
-/* Results panel only shows once there is something to show. */
-#resultsPanel:not(:has(#artworkMetadata:not(.hidden), #videoContainer:not(.hidden), #staticResults:not(.hidden))) {
-    display: none;
-}
-
-/* The first result block needs no top gap now that it opens its own panel. */
-#resultsPanel > #artworkMetadata,
-#resultsPanel > #staticResults { margin-top: 0; }
