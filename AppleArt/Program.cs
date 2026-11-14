@@ -377,6 +377,7 @@ try
                     genre = details.Genre,
                     copyright = details.Copyright,
                     artwork = details.ArtworkUrl,
+                    type = details.ReleaseType,
                     tracks = details.Tracks.Select(t => new
                     {
                         title = t.Title,
@@ -431,7 +432,8 @@ try
                         thumbnail = a.ThumbnailUrl,
                         appleMusicUrl = a.AppleMusicUrl,
                         releaseDate = a.ReleaseDate,
-                        logo = a.LogoUrl
+                        logo = a.LogoUrl,
+                        type = a.ReleaseType
                     }),
                     isCached
                 });

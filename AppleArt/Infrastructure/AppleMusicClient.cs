@@ -224,7 +224,16 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         }
 
         return new StaticArtwork(artistName, albumName, fullUrl, thumbnailUrl, pageUri.GetLeftPart(UriPartial.Path),
-            attrs?["releaseDate"]?.ToString());
+            attrs?["releaseDate"]?.ToString(), ReleaseType: ReleaseType(attrs));
+    }
+
+    // Apple flags singles and compilations; EPs are only marked by the " - EP" title suffix.
+    private static string ReleaseType(JsonNode? attrs)
+    {
+        if ((bool?)attrs?["isCompilation"] == true) return "compilation";
+        if ((bool?)attrs?["isSingle"] == true) return "single";
+        if (attrs?["name"]?.ToString().EndsWith(" - EP", StringComparison.Ordinal) == true) return "ep";
+        return "album";
     }
 
     private static StaticArtworkLookupResult CatalogAlbumsResult(JsonNode? data)
@@ -337,7 +346,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             attrs?["genreNames"]?[0]?.ToString(),
             attrs?["copyright"]?.ToString(),
             artworkUrl,
-            tracks));
+            tracks,
+            ReleaseType(attrs)));
     }
 
     private const int MaxArtistCandidates = 3;

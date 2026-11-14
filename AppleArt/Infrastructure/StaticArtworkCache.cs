@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 
 namespace AnimatedArtworks.Infrastructure;
 
 // Persisted like animated artwork: found results are kept for good, no-matches expire after 30 days.
 // Artist results carry the logo, which Apple can change, so they are rechecked after 30 days too.
+// Album results saved before the release type existed are rechecked once to pick it up.
 // Keyed by the exact (trimmed, case-folded) query, so a no-match only answers that same query.
 public sealed class StaticArtworkCache(SqliteDatabase database)
 {
@@ -60,8 +62,9 @@ public sealed class StaticArtworkCache(SqliteDatabase database)
         }
 
         result = new StaticArtworkLookupResult(StaticArtworkLookupStatus.Found, artworks);
-        isStale = key.StartsWith(ArtistKeyPrefix, StringComparison.Ordinal) &&
-                  DateTime.UtcNow - lastFetched >= ArtistRecheckInterval;
+        isStale = key.StartsWith(ArtistKeyPrefix, StringComparison.Ordinal)
+            ? DateTime.UtcNow - lastFetched >= ArtistRecheckInterval
+            : artworks.Any(a => a.ReleaseType == null);
         return true;
     }
 
