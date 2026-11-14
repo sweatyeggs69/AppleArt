@@ -8,5 +8,6 @@ public record StaticArtwork(
     string? LogoUrl = null,
     string? ReleaseType = null,
     bool? IsExplicit = null,
-    string? Description = null
+    string? Description = null,
+    string? Genre = null
 );

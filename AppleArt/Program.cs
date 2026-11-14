@@ -436,7 +436,8 @@ try
                         logo = a.LogoUrl,
                         type = a.ReleaseType,
                         isExplicit = a.IsExplicit,
-                        description = a.Description
+                        description = a.Description,
+                        genre = a.Genre
                     }),
                     isCached
                 });

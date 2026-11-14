@@ -188,6 +188,14 @@ public sealed class SqliteDatabase
             purge.CommandText = "DELETE FROM static_artworks WHERE key LIKE 'artist|%'; PRAGMA user_version = 9;";
             purge.ExecuteNonQuery();
         }
+
+        // v10: artist results now carry Apple's main genre. Drop the saved artist results once more.
+        if (version < 10)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = "DELETE FROM static_artworks WHERE key LIKE 'artist|%'; PRAGMA user_version = 10;";
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;

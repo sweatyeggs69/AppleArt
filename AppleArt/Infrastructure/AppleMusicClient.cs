@@ -471,7 +471,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
 
             artworks.Add(new StaticArtwork(name, string.Empty, fullUrl, thumbnailUrl, pageUri.GetLeftPart(UriPartial.Path), null,
                 BuildLogoUrl(attrs?["editorialArtwork"]?["musicContentColorLogoTrimmed"]),
-                Description: PlainText(attrs?["artistBio"]?.ToString()) ?? EditorialNotes(attrs)));
+                Description: PlainText(attrs?["artistBio"]?.ToString()) ?? EditorialNotes(attrs),
+                Genre: attrs?["genreNames"]?.AsArray().Select(g => g?.ToString()).FirstOrDefault(g => !string.IsNullOrWhiteSpace(g) && g != "Music")));
         }
 
         return artworks.Count > 0
