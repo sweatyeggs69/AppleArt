@@ -20,8 +20,11 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
     [GeneratedRegex(@"[""'](eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+)[""']", RegexOptions.NonBacktracking)]
     private partial Regex JwtRegex();
     
-    [GeneratedRegex("[^a-z0-9]+", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
+    [GeneratedRegex(@"[^\p{L}\p{N}\p{S}]+", RegexOptions.NonBacktracking)]
     private static partial Regex NonAlphanumericRegex();
+
+    [GeneratedRegex(@"\p{S}", RegexOptions.NonBacktracking)]
+    private static partial Regex SymbolRegex();
 
     public async Task<AppleMusicWebSearchResult> GetAppleMusicUrlViaWebSearchAsync(string artist, string album, string? title = null, CancellationToken ct = default)
     {
@@ -85,6 +88,18 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             return -1;
         }
 
+        // Punctuation-only titles (Ed Sheeran's "-") only survive as a leading word: "- (Deluxe)".
+        if (!requested.Any(char.IsLetterOrDigit) && !requested.Any(char.IsSymbol))
+        {
+            string raw = foundAlbumName.Trim().ToLowerInvariant();
+            if (raw == requested)
+            {
+                return 0;
+            }
+
+            return raw.StartsWith(requested + " ", StringComparison.Ordinal) ? found.Split(' ').Length : -1;
+        }
+
         if (found == requested)
         {
             return 0;
@@ -101,8 +116,10 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
     private static string NormalizeForComparison(string input)
     {
         // Apostrophes vanish instead of splitting words, so "Taylor's" matches Apple's slug "taylors".
+        // Symbols stay as their own words, so Ed Sheeran's "+" and "÷ (Deluxe)" stay distinct.
         string normalized = input.Trim().ToLowerInvariant()
             .Replace("'", "").Replace("\u2019", "").Replace("\u2018", "").Replace("\u02BC", "");
+        normalized = SymbolRegex().Replace(normalized, " $0 ");
         normalized = NonAlphanumericRegex().Replace(normalized, " ");
         normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
         return normalized.Length > 0 ? normalized : Regex.Replace(input.Trim().ToLowerInvariant(), @"\s+", " ");

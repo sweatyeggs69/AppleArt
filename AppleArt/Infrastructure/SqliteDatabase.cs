@@ -144,6 +144,18 @@ public sealed class SqliteDatabase
                 """;
             purge.ExecuteNonQuery();
         }
+
+        // v6: title matching now keeps symbols as words ("÷ (Deluxe)" matches "÷"). Drop the album no-matches once.
+        if (version < 6)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = $"""
+                DELETE FROM metadata_resolutions WHERE status = {(int)MetadataResolutionStatus.NoMatch};
+                DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch} AND key NOT LIKE 'artist|%';
+                PRAGMA user_version = 6;
+                """;
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;
