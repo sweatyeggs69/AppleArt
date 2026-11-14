@@ -168,6 +168,18 @@ public sealed class SqliteDatabase
                 """;
             purge.ExecuteNonQuery();
         }
+
+        // v8: edition names ("Album (Deluxe Edition)") and looser artist names now match. Drop the album no-matches once.
+        if (version < 8)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = $"""
+                DELETE FROM metadata_resolutions WHERE status = {(int)MetadataResolutionStatus.NoMatch};
+                DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch} AND key NOT LIKE 'artist|%';
+                PRAGMA user_version = 8;
+                """;
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;
