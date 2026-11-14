@@ -8,5 +8,6 @@ public record AppleAlbumDetails(
     string? Copyright,
     string ArtworkUrl,
     IReadOnlyList<AppleAlbumTrack> Tracks,
-    string ReleaseType
+    string ReleaseType,
+    string? Description
 );

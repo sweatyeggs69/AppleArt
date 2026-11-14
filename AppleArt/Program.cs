@@ -378,6 +378,7 @@ try
                     copyright = details.Copyright,
                     artwork = details.ArtworkUrl,
                     type = details.ReleaseType,
+                    description = details.Description,
                     tracks = details.Tracks.Select(t => new
                     {
                         title = t.Title,

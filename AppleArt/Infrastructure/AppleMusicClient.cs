@@ -347,7 +347,25 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             attrs?["copyright"]?.ToString(),
             artworkUrl,
             tracks,
-            ReleaseType(attrs)));
+            ReleaseType(attrs),
+            EditorialNotes(attrs)));
+    }
+
+    [GeneratedRegex("<[^>]+>", RegexOptions.NonBacktracking)]
+    private static partial Regex HtmlTagRegex();
+
+    // Apple's editorial notes carry light HTML (<i>, <br />); Plex summaries are plain text.
+    private static string? EditorialNotes(JsonNode? attrs)
+    {
+        string? notes = attrs?["editorialNotes"]?["standard"]?.ToString() ?? attrs?["editorialNotes"]?["short"]?.ToString();
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return null;
+        }
+
+        string text = Regex.Replace(notes, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
+        text = WebUtility.HtmlDecode(HtmlTagRegex().Replace(text, "")).Trim();
+        return text.Length > 0 ? text : null;
     }
 
     private const int MaxArtistCandidates = 3;
