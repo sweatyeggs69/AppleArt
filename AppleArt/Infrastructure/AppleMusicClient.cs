@@ -396,6 +396,11 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
     private static string? EditorialNotes(JsonNode? attrs)
     {
         string? notes = attrs?["editorialNotes"]?["standard"]?.ToString() ?? attrs?["editorialNotes"]?["short"]?.ToString();
+        return PlainText(notes);
+    }
+
+    private static string? PlainText(string? notes)
+    {
         if (string.IsNullOrWhiteSpace(notes))
         {
             return null;
@@ -438,7 +443,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             return new(StaticArtworkLookupStatus.NoMatch);
         }
 
-        string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/us/artists?ids={string.Join(',', artistIds)}&platform=web&extend=editorialArtwork";
+        string apiUrl = $"https://amp-api.music.apple.com/v1/catalog/us/artists?ids={string.Join(',', artistIds)}&platform=web&extend=editorialArtwork,artistBio";
         var (status, json) = await GetCatalogJsonAsync(apiUrl, ct);
         if (status != StaticArtworkLookupStatus.Found)
         {
@@ -465,7 +470,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             }
 
             artworks.Add(new StaticArtwork(name, string.Empty, fullUrl, thumbnailUrl, pageUri.GetLeftPart(UriPartial.Path), null,
-                BuildLogoUrl(attrs?["editorialArtwork"]?["musicContentColorLogoTrimmed"])));
+                BuildLogoUrl(attrs?["editorialArtwork"]?["musicContentColorLogoTrimmed"]),
+                Description: PlainText(attrs?["artistBio"]?.ToString()) ?? EditorialNotes(attrs)));
         }
 
         return artworks.Count > 0

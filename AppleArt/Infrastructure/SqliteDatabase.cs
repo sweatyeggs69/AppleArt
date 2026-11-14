@@ -180,6 +180,14 @@ public sealed class SqliteDatabase
                 """;
             purge.ExecuteNonQuery();
         }
+
+        // v9: artist results now carry Apple's artist bio. Drop the saved artist results once so they are fetched with it.
+        if (version < 9)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = "DELETE FROM static_artworks WHERE key LIKE 'artist|%'; PRAGMA user_version = 9;";
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;

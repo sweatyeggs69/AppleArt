@@ -435,7 +435,8 @@ try
                         releaseDate = a.ReleaseDate,
                         logo = a.LogoUrl,
                         type = a.ReleaseType,
-                        isExplicit = a.IsExplicit
+                        isExplicit = a.IsExplicit,
+                        description = a.Description
                     }),
                     isCached
                 });

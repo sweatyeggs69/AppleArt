@@ -7,5 +7,6 @@ public record StaticArtwork(
     string? ReleaseDate,
     string? LogoUrl = null,
     string? ReleaseType = null,
-    bool? IsExplicit = null
+    bool? IsExplicit = null,
+    string? Description = null
 );
