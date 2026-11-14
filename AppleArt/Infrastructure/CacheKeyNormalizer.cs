@@ -21,7 +21,8 @@ public static class CacheKeyNormalizer
             }
         }
 
-        return normalized.ToString();
+        // Symbol-only titles such as Ed Sheeran's "+", "÷" and "=" would otherwise all collapse to the same empty key.
+        return normalized.Length > 0 ? normalized.ToString() : input.Trim().ToLowerInvariant();
     }
 
     public static string BuildMetadataKey(string? artist, string? album)

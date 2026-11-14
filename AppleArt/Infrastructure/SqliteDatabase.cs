@@ -130,6 +130,20 @@ public sealed class SqliteDatabase
                 """;
             purge.ExecuteNonQuery();
         }
+
+        // v5: symbol-only titles ("+", "÷", "=") used to normalize to an empty album, so they shared one
+        // cache entry and never matched. Drop those entries and the no-matches they caused once.
+        if (version < 5)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = $"""
+                DELETE FROM metadata_resolutions WHERE key LIKE '%|';
+                UPDATE artworks SET normalized_album = lower(trim(album)) WHERE normalized_album = '';
+                DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch};
+                PRAGMA user_version = 5;
+                """;
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;

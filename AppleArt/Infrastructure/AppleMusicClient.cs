@@ -105,7 +105,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             .Replace("'", "").Replace("\u2019", "").Replace("\u2018", "").Replace("\u02BC", "");
         normalized = NonAlphanumericRegex().Replace(normalized, " ");
         normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
-        return normalized;
+        return normalized.Length > 0 ? normalized : Regex.Replace(input.Trim().ToLowerInvariant(), @"\s+", " ");
     }
 
     private static readonly TimeSpan CatalogTokenLifetime = TimeSpan.FromHours(6);
