@@ -117,7 +117,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
     {
         // Apostrophes vanish instead of splitting words, so "Taylor's" matches Apple's slug "taylors".
         // Symbols stay as their own words, so Ed Sheeran's "+" and "÷ (Deluxe)" stay distinct.
-        string normalized = input.Trim().ToLowerInvariant()
+        // Roman numerals compare as numbers, so Plex's "IV" matches Apple's "4".
+        string normalized = RomanNumerals.ToArabic(input).Trim().ToLowerInvariant()
             .Replace("'", "").Replace("\u2019", "").Replace("\u2018", "").Replace("\u02BC", "");
         normalized = SymbolRegex().Replace(normalized, " $0 ");
         normalized = NonAlphanumericRegex().Replace(normalized, " ");
@@ -273,7 +274,18 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
 
     public async Task<StaticArtworkLookupResult> SearchStaticArtworkAsync(string artist, string album, CancellationToken ct)
     {
-        string query = Uri.EscapeDataString($"{artist} {album}");
+        StaticArtworkLookupResult result = await SearchStaticArtworkOnceAsync(artist, album, album, ct);
+        if (result.Status == StaticArtworkLookupStatus.NoMatch && RomanNumerals.AlternateSpelling(album) is { } alternate)
+        {
+            return await SearchStaticArtworkOnceAsync(artist, alternate, album, ct);
+        }
+
+        return result;
+    }
+
+    private async Task<StaticArtworkLookupResult> SearchStaticArtworkOnceAsync(string artist, string searchAlbum, string album, CancellationToken ct)
+    {
+        string query = Uri.EscapeDataString($"{artist} {searchAlbum}");
         string catalogUrl = $"https://amp-api.music.apple.com/v1/catalog/us/search?term={query}&types=albums&limit=25&platform=web";
 
         var (status, json) = await GetCatalogJsonAsync(catalogUrl, ct);

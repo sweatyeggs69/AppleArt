@@ -156,6 +156,18 @@ public sealed class SqliteDatabase
                 """;
             purge.ExecuteNonQuery();
         }
+
+        // v7: Roman numerals now match numbers ("IV" finds "4"). Drop the album no-matches once.
+        if (version < 7)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = $"""
+                DELETE FROM metadata_resolutions WHERE status = {(int)MetadataResolutionStatus.NoMatch};
+                DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch} AND key NOT LIKE 'artist|%';
+                PRAGMA user_version = 7;
+                """;
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;
