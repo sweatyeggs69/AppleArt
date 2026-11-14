@@ -6,5 +6,6 @@ public record StaticArtwork(
     string AppleMusicUrl,
     string? ReleaseDate,
     string? LogoUrl = null,
-    string? ReleaseType = null
+    string? ReleaseType = null,
+    bool? IsExplicit = null
 );

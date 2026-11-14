@@ -64,7 +64,7 @@ public sealed class StaticArtworkCache(SqliteDatabase database)
         result = new StaticArtworkLookupResult(StaticArtworkLookupStatus.Found, artworks);
         isStale = key.StartsWith(ArtistKeyPrefix, StringComparison.Ordinal)
             ? DateTime.UtcNow - lastFetched >= ArtistRecheckInterval
-            : artworks.Any(a => a.ReleaseType == null);
+            : artworks.Any(a => a.ReleaseType == null || a.IsExplicit == null);
         return true;
     }
 

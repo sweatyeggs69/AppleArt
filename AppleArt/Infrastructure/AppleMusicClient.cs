@@ -105,12 +105,20 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             return 0;
         }
 
-        if (!$" {found} ".Contains($" {requested} ", StringComparison.Ordinal))
+        if ($" {found} ".Contains($" {requested} ", StringComparison.Ordinal))
+        {
+            return found.Split(' ').Length - requested.Split(' ').Length;
+        }
+
+        // Plex's "Album (Deluxe Edition)" still finds Apple's plain "Album", ranked just behind closer titles.
+        string withoutEdition = AlbumEdition.Strip(requestedAlbumName);
+        if (withoutEdition == requestedAlbumName.Trim())
         {
             return -1;
         }
 
-        return found.Split(' ').Length - requested.Split(' ').Length;
+        int rank = RankAlbumMatch(foundAlbumName, withoutEdition);
+        return rank >= 0 ? rank + 1 : -1;
     }
 
     private static string NormalizeForComparison(string input)
@@ -242,7 +250,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         }
 
         return new StaticArtwork(artistName, albumName, fullUrl, thumbnailUrl, pageUri.GetLeftPart(UriPartial.Path),
-            attrs?["releaseDate"]?.ToString(), ReleaseType: ReleaseType(attrs));
+            attrs?["releaseDate"]?.ToString(), ReleaseType: ReleaseType(attrs),
+            IsExplicit: attrs?["contentRating"]?.ToString() == "explicit");
     }
 
     // Apple flags singles and compilations; EPs are only marked by the " - EP" title suffix.

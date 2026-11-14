@@ -434,7 +434,8 @@ try
                         appleMusicUrl = a.AppleMusicUrl,
                         releaseDate = a.ReleaseDate,
                         logo = a.LogoUrl,
-                        type = a.ReleaseType
+                        type = a.ReleaseType,
+                        isExplicit = a.IsExplicit
                     }),
                     isCached
                 });

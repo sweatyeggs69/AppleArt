@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace AnimatedArtworks.Infrastructure;
 
@@ -36,8 +37,8 @@ public static class CacheKeyNormalizer
     /// </summary>
     public static bool ArtistsMatch(string? requested, string? found)
     {
-        string a = NormalizeWords(requested);
-        string b = NormalizeWords(found);
+        string a = NormalizeArtist(requested);
+        string b = NormalizeArtist(found);
 
         if (a.Length == 0 || b.Length == 0)
         {
@@ -45,6 +46,19 @@ public static class CacheKeyNormalizer
         }
 
         return a == b || $" {b} ".Contains($" {a} ", StringComparison.Ordinal) || $" {a} ".Contains($" {b} ", StringComparison.Ordinal);
+    }
+
+    // "Simon & Garfunkel" matches "Simon and Garfunkel", "The Weeknd" matches "Weeknd", and featured artists are ignored.
+    private static string NormalizeArtist(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
+
+        string trimmed = Regex.Replace(input, @"\s*[\(\[]?\b(feat\.?|ft\.|featuring)\s.*$", "", RegexOptions.IgnoreCase);
+        string words = NormalizeWords(trimmed.Replace("&", " and ").Replace("+", " and "));
+        return words.StartsWith("the ", StringComparison.Ordinal) ? words[4..] : words;
     }
 
     private static string NormalizeWords(string? input)
