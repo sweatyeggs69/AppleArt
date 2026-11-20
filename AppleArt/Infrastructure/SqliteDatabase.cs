@@ -196,6 +196,15 @@ public sealed class SqliteDatabase
             purge.CommandText = "DELETE FROM static_artworks WHERE key LIKE 'artist|%'; PRAGMA user_version = 10;";
             purge.ExecuteNonQuery();
         }
+
+        // v11: label-supplied artist photos (pr_source under "Music…" paths) were treated as album covers, which also hid
+        // same-name artists from found results. Drop the saved artist results once more.
+        if (version < 11)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = "DELETE FROM static_artworks WHERE key LIKE 'artist|%'; PRAGMA user_version = 11;";
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;

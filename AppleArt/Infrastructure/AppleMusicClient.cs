@@ -458,10 +458,11 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             string? template = attrs?["artwork"]?["url"]?.ToString();
             string? pageUrl = attrs?["url"]?.ToString();
 
-            // Artists without a photo get one of their album covers, served from a "Music…" path.
+            // Artists without a photo get one of their album covers (".../Music125/.../195081965314.jpg"); label-supplied
+            // photos also live under "Music…" paths but are named pr_source.
             if (string.IsNullOrWhiteSpace(name) ||
                 !TryBuildTemplateArtworkUrl(template, 1000, out string fullUrl) ||
-                new Uri(fullUrl).AbsolutePath.StartsWith("/image/thumb/Music", StringComparison.OrdinalIgnoreCase) ||
+                IsAlbumCoverFallback(new Uri(fullUrl).AbsolutePath) ||
                 !TryBuildTemplateArtworkUrl(template, 600, out string thumbnailUrl) ||
                 !Uri.TryCreate(pageUrl, UriKind.Absolute, out Uri? pageUri) ||
                 !string.Equals(pageUri.IdnHost, AppleMusicUrl.Host, StringComparison.OrdinalIgnoreCase))
@@ -479,6 +480,10 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             ? new(StaticArtworkLookupStatus.Found, artworks)
             : new(StaticArtworkLookupStatus.NoMatch);
     }
+
+    private static bool IsAlbumCoverFallback(string path) =>
+        path.StartsWith("/image/thumb/Music", StringComparison.OrdinalIgnoreCase) &&
+        !path.Contains("/pr_source.", StringComparison.OrdinalIgnoreCase);
 
     // The logo is a white wordmark; HEIC keeps its transparent background at the smallest size.
     private static string? BuildLogoUrl(JsonNode? logo)
