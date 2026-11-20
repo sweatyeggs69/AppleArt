@@ -205,6 +205,14 @@ public sealed class SqliteDatabase
             purge.CommandText = "DELETE FROM static_artworks WHERE key LIKE 'artist|%'; PRAGMA user_version = 11;";
             purge.ExecuteNonQuery();
         }
+
+        // v12: artists without a photo are now returned with empty image URLs. Drop the saved artist results once more.
+        if (version < 12)
+        {
+            using var purge = connection.CreateCommand();
+            purge.CommandText = "DELETE FROM static_artworks WHERE key LIKE 'artist|%'; PRAGMA user_version = 12;";
+            purge.ExecuteNonQuery();
+        }
     }
 
     public void MarkInitialized() => _isInitialized = true;
