@@ -7,11 +7,13 @@ public sealed class AppleLookupLimiter
 {
     private readonly PartitionedRateLimiter<string> _limiter;
 
-    public AppleLookupLimiter(int perClientPerMinute, int globalPerMinute)
+    // Bulk clients (ClientIdentity.BulkPrefix) get their own larger bucket; the Worker's global bulk budget already spreads them out.
+    public AppleLookupLimiter(int perClientPerMinute, int bulkPerClientPerMinute, int globalPerMinute)
     {
         _limiter = PartitionedRateLimiter.CreateChained(
             PartitionedRateLimiter.Create<string, string>(client =>
-                RateLimitPartition.GetTokenBucketLimiter(client, _ => Bucket(perClientPerMinute))),
+                RateLimitPartition.GetTokenBucketLimiter(client, key =>
+                    Bucket(key.StartsWith(ClientIdentity.BulkPrefix, StringComparison.Ordinal) ? bulkPerClientPerMinute : perClientPerMinute))),
             PartitionedRateLimiter.Create<string, string>(_ =>
                 RateLimitPartition.GetTokenBucketLimiter("global", _ => Bucket(globalPerMinute))));
     }

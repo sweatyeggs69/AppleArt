@@ -55,6 +55,7 @@ try
 
     builder.Services.AddSingleton(new AppleLookupLimiter(
         perClientPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE", 20),
+        bulkPerClientPerMinute: builder.Configuration.GetValue("APPLE_BULK_LOOKUPS_PER_CLIENT_PER_MINUTE", 60),
         globalPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_MINUTE", 120)));
 
     builder.Services.AddTransient<AppleEgressHandler>();
@@ -223,7 +224,7 @@ try
         if (artist.Length > MaxQueryLength || album.Length > MaxQueryLength || title?.Length > MaxQueryLength)
             return Results.BadRequest("Artist, Album and Title must be 200 characters or fewer.");
         
-        service.SetClient(ClientIdentity.Resolve(context));
+        service.SetClient(ClientIdentity.LookupClient(context));
         (ArtworkCacheEntry? entry, bool isCached) = await service.GetArtworkByDetailsAsync(artist, album, title, ct);
         if (entry == null && service.WasThrottled)
             return Throttled(response);
@@ -262,7 +263,7 @@ try
         if (!AppleMusicUrl.TryParse(url, out _))
             return Results.BadRequest("A valid Apple Music album or playlist URL must be provided.");
 
-        service.SetClient(ClientIdentity.Resolve(context));
+        service.SetClient(ClientIdentity.LookupClient(context));
         var (entry, isCached) = await service.GetArtworkByUrlAsync(url, ct);
         if (entry == null && service.WasThrottled)
             return Throttled(response);
@@ -302,7 +303,7 @@ try
         if (artist.Length > MaxQueryLength || album.Length > MaxQueryLength)
             return Results.BadRequest("Artist and Album must be 200 characters or fewer.");
 
-        service.SetClient(ClientIdentity.Resolve(context));
+        service.SetClient(ClientIdentity.LookupClient(context));
         var (result, isCached) = await service.SearchAsync(artist, album, ct);
         return StaticArtworkResponse(result, isCached, response);
     }).RequireRateLimiting("ApiRateLimit");
@@ -321,7 +322,7 @@ try
         if (!AppleMusicUrl.TryParse(url, out AppleMusicCatalogTarget target) || target.ResourceType != "albums")
             return Results.BadRequest("A valid Apple Music album URL must be provided.");
 
-        service.SetClient(ClientIdentity.Resolve(context));
+        service.SetClient(ClientIdentity.LookupClient(context));
         var (result, isCached) = await service.LookupAsync(target, ct);
         return StaticArtworkResponse(result, isCached, response);
     }).RequireRateLimiting("ApiRateLimit");
@@ -341,7 +342,7 @@ try
         if (artist.Length > MaxQueryLength)
             return Results.BadRequest("Artist must be 200 characters or fewer.");
 
-        service.SetClient(ClientIdentity.Resolve(context));
+        service.SetClient(ClientIdentity.LookupClient(context));
         var (result, isCached) = await service.SearchArtistAsync(artist, ct);
         return StaticArtworkResponse(result, isCached, response);
     }).RequireRateLimiting("ApiRateLimit");
@@ -363,7 +364,7 @@ try
         if (storefront.Length != 2 || !storefront.All(char.IsAsciiLetterLower))
             return Results.BadRequest("Country must be a two-letter storefront code.");
 
-        var (result, isCached) = await service.LookupAsync(id, storefront, ClientIdentity.Resolve(context), ct);
+        var (result, isCached) = await service.LookupAsync(id, storefront, ClientIdentity.LookupClient(context), ct);
         switch (result.Status)
         {
             case StaticArtworkLookupStatus.Found:
@@ -392,6 +393,67 @@ try
             case StaticArtworkLookupStatus.NoMatch:
                 response.Headers.CacheControl = "public, max-age=3600";
                 return Results.NotFound(new { message = "Album not found." });
+            case StaticArtworkLookupStatus.RateLimited:
+                return Throttled(response);
+            default:
+                response.Headers.CacheControl = "no-store";
+                return Results.Problem("Apple lookup failed.", statusCode: StatusCodes.Status502BadGateway);
+        }
+    }).RequireRateLimiting("ApiRateLimit");
+
+    app.MapGet("/api/v1/album/details/batch", async (
+        [FromQuery] string? ids,
+        [FromQuery] string? country,
+        [FromServices] AlbumDetailsService service,
+        [FromServices] ILogger<Program> logger,
+        HttpContext context,
+        HttpResponse response,
+        CancellationToken ct) =>
+    {
+        logger.LogInformation("Incoming Request: Album Details Batch -> {Ids} ({Country})", ids, country);
+
+        string storefront = string.IsNullOrWhiteSpace(country) ? "us" : country.ToLowerInvariant();
+        string[] idList = (ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (idList.Length is 0 or > 10 || idList.Any(id => id.Length > 15 || !id.All(char.IsAsciiDigit)))
+            return Results.BadRequest("Between 1 and 10 numeric Apple Music album ids must be provided.");
+        if (storefront.Length != 2 || !storefront.All(char.IsAsciiLetterLower))
+            return Results.BadRequest("Country must be a two-letter storefront code.");
+
+        var (status, albums) = await service.LookupBatchAsync(idList, storefront, ClientIdentity.LookupClient(context), ct);
+        switch (status)
+        {
+            case StaticArtworkLookupStatus.Found:
+                response.Headers.CacheControl = "public, max-age=3600";
+                return Results.Ok(new
+                {
+                    albums = albums
+                        .Where(pair => pair.Value.Status == StaticArtworkLookupStatus.Found && pair.Value.Details != null)
+                        .Select(pair =>
+                        {
+                            AppleAlbumDetails details = pair.Value.Details!;
+                            return new
+                            {
+                                id = pair.Key,
+                                title = details.Title,
+                                artist = details.Artist,
+                                releaseDate = details.ReleaseDate,
+                                genre = details.Genre,
+                                copyright = details.Copyright,
+                                artwork = details.ArtworkUrl,
+                                type = details.ReleaseType,
+                                description = details.Description,
+                                tracks = details.Tracks.Select(t => new
+                                {
+                                    title = t.Title,
+                                    artist = t.Artist,
+                                    trackNumber = t.TrackNumber,
+                                    discNumber = t.DiscNumber,
+                                    durationMs = t.DurationMs
+                                })
+                            };
+                        }),
+                    notFound = albums.Where(pair => pair.Value.Status == StaticArtworkLookupStatus.NoMatch).Select(pair => pair.Key)
+                });
             case StaticArtworkLookupStatus.RateLimited:
                 return Throttled(response);
             default:

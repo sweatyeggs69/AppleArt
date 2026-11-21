@@ -49,6 +49,10 @@ Same response shape (empty `album`, no `releaseDate`, plus `logo`: a transparent
 
 The album (`title`, `artist`, `releaseDate`, `genre`, `copyright`, `artwork` at 1400x1400) and its `tracks` (`title`, `artist`, `trackNumber`, `discNumber`, `durationMs`) from the Apple Music catalog. `id` is the number at the end of an `appleMusicUrl`, `country` defaults to `us`. Kept in memory for a day (no-matches for an hour) and counted against the Apple lookup limits.
 
+```GET /api/v1/album/details/batch?ids=1440935467,1440935468&country=us```
+
+Up to 10 albums in one Apple request: `albums` (each with its `id` plus the fields above) and `notFound` (ids Apple doesn't have). Shares the same cache; one lookup permit covers the uncached ids.
+
 **Get Global History**
 
 ```GET /api/v1/artwork/history```
@@ -56,7 +60,7 @@ The album (`title`, `artist`, `releaseDate`, `genre`, `copyright`, `artwork` at 
 ## Origin Secret
 Set `ORIGIN_SECRET` to make `/api` require a matching `X-Origin-Secret` header (the Tromme API Worker adds it). Unset, the API is open.
 
-Requests that have to reach Apple (cache misses) are limited to `APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE` (default 20) per client and `APPLE_LOOKUPS_PER_MINUTE` (default 120) overall. Clients are identified by `CF-Connecting-IP` when the connection comes from a local or private address (the Cloudflare tunnel), otherwise by the connecting address; `X-Forwarded-For` is ignored. Requests relayed by the Tromme API Worker all share the Worker's `CF-Connecting-IP`, so when `PROXY_SECRET` is set and a request's `X-Origin-Secret` matches it, the Worker's `X-Client-IP` header identifies the client instead. Set `PROXY_SECRET` to the Worker's `ARTWORK_ORIGIN_SECRET`; unlike `ORIGIN_SECRET`, it never blocks direct callers.
+Requests that have to reach Apple (cache misses) are limited to `APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE` (default 20) per client (`APPLE_BULK_LOOKUPS_PER_CLIENT_PER_MINUTE`, default 60, for Worker requests marked `X-Tromme-Bulk: 1`) and `APPLE_LOOKUPS_PER_MINUTE` (default 120) overall. Clients are identified by `CF-Connecting-IP` when the connection comes from a local or private address (the Cloudflare tunnel), otherwise by the connecting address; `X-Forwarded-For` is ignored. Requests relayed by the Tromme API Worker all share the Worker's `CF-Connecting-IP`, so when `PROXY_SECRET` is set and a request's `X-Origin-Secret` matches it, the Worker's `X-Client-IP` header identifies the client instead. Set `PROXY_SECRET` to the Worker's `ARTWORK_ORIGIN_SECRET`; unlike `ORIGIN_SECRET`, it never blocks direct callers.
 
 ## Caching Strategy
 This project is designed to be "Apple-friendly" to avoid rate limits:

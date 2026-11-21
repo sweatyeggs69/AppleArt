@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AnimatedArtworks.Infrastructure;
@@ -16,4 +17,7 @@ public interface IAppleMusicClient
     Task<StaticArtworkLookupResult> SearchArtistArtworkAsync(string artist, CancellationToken ct);
 
     Task<AppleAlbumDetailsResult> LookupAlbumDetailsAsync(string id, string storefront, CancellationToken ct);
+
+    Task<(StaticArtworkLookupStatus Status, IReadOnlyDictionary<string, AppleAlbumDetailsResult> Albums)> LookupAlbumDetailsBatchAsync(
+        IReadOnlyList<string> ids, string storefront, CancellationToken ct);
 }

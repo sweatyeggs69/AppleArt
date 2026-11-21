@@ -345,6 +345,33 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         };
     }
 
+    // One catalog request for several albums; ids Apple doesn't return come back as NoMatch.
+    public async Task<(StaticArtworkLookupStatus Status, IReadOnlyDictionary<string, AppleAlbumDetailsResult> Albums)> LookupAlbumDetailsBatchAsync(
+        IReadOnlyList<string> ids, string storefront, CancellationToken ct)
+    {
+        string joined = string.Join(',', ids.Select(id => Uri.EscapeDataString(id)));
+        string catalogUrl = $"https://amp-api.music.apple.com/v1/catalog/{storefront}/albums?ids={joined}&include=tracks&platform=web";
+        var (status, json) = await GetCatalogJsonAsync(catalogUrl, ct);
+        Dictionary<string, AppleAlbumDetailsResult> albums = [];
+        if (status is not (StaticArtworkLookupStatus.Found or StaticArtworkLookupStatus.NoMatch))
+        {
+            return (status, albums);
+        }
+
+        foreach (JsonNode? item in json?["data"]?.AsArray() ?? [])
+        {
+            if (item?["id"]?.ToString() is { Length: > 0 } id)
+            {
+                albums[id] = ParseCatalogAlbumDetails(item);
+            }
+        }
+        foreach (string id in ids)
+        {
+            albums.TryAdd(id, new AppleAlbumDetailsResult(StaticArtworkLookupStatus.NoMatch));
+        }
+        return (StaticArtworkLookupStatus.Found, albums);
+    }
+
     private static AppleAlbumDetailsResult ParseCatalogAlbumDetails(JsonNode? album)
     {
         JsonNode? attrs = album?["attributes"];
