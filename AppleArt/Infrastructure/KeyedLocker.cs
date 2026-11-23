@@ -1,20 +1,73 @@
+using System;
+using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace AnimatedArtworks.Infrastructure;
 
-using System.Collections.Concurrent;
-
-public class KeyedLocker
+public sealed class KeyedLocker
 {
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _semaphores = new();
+    private readonly Dictionary<string, Entry> _entries = new();
 
-    public SemaphoreSlim GetLock(string key)
+    public async Task<IDisposable> LockAsync(string key, CancellationToken ct)
     {
-        return _semaphores.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+        Entry entry;
+        lock (_entries)
+        {
+            if (!_entries.TryGetValue(key, out entry!))
+            {
+                entry = new Entry();
+                _entries[key] = entry;
+            }
+
+            entry.RefCount++;
+        }
+
+        try
+        {
+            await entry.Semaphore.WaitAsync(ct);
+        }
+        catch
+        {
+            Release(key, entry, held: false);
+            throw;
+        }
+
+        return new Handle(this, key, entry);
     }
 
-    public void RemoveLock(string key)
+    private void Release(string key, Entry entry, bool held)
     {
-        _semaphores.TryRemove(key, out _);
+        if (held)
+        {
+            entry.Semaphore.Release();
+        }
+
+        lock (_entries)
+        {
+            if (--entry.RefCount == 0)
+            {
+                _entries.Remove(key);
+            }
+        }
+    }
+
+    private sealed class Entry
+    {
+        public readonly SemaphoreSlim Semaphore = new(1, 1);
+        public int RefCount;
+    }
+
+    private sealed class Handle(KeyedLocker owner, string key, Entry entry) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                owner.Release(key, entry, held: true);
+            }
+        }
     }
 }

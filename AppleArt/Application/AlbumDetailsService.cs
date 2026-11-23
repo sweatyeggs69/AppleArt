@@ -57,16 +57,18 @@ public class AlbumDetailsService(
             switch (result.Status)
             {
                 case StaticArtworkLookupStatus.Found:
-                    cache.Set(Key(id, storefront), result, FoundTtl);
+                    cache.Set(Key(id, storefront), result, Entry(FoundTtl));
                     break;
                 case StaticArtworkLookupStatus.NoMatch:
-                    cache.Set(Key(id, storefront), result, NoMatchTtl);
+                    cache.Set(Key(id, storefront), result, Entry(NoMatchTtl));
                     break;
             }
             albums[id] = result;
         }
         return (StaticArtworkLookupStatus.Found, albums);
     }
+
+    private static MemoryCacheEntryOptions Entry(TimeSpan ttl) => new() { AbsoluteExpirationRelativeToNow = ttl, Size = 1 };
 
     private static string Key(string id, string storefront) => $"album-details|{storefront}|{id}";
 
@@ -78,8 +80,7 @@ public class AlbumDetailsService(
             return (cached, true);
         }
 
-        SemaphoreSlim semaphore = locker.GetLock(key);
-        await semaphore.WaitAsync(ct);
+        IDisposable keyLock = await locker.LockAsync(key, ct);
         try
         {
             if (cache.TryGetValue(key, out cached))
@@ -97,18 +98,17 @@ public class AlbumDetailsService(
             switch (result.Status)
             {
                 case StaticArtworkLookupStatus.Found:
-                    cache.Set(key, result, FoundTtl);
+                    cache.Set(key, result, Entry(FoundTtl));
                     break;
                 case StaticArtworkLookupStatus.NoMatch:
-                    cache.Set(key, result, NoMatchTtl);
+                    cache.Set(key, result, Entry(NoMatchTtl));
                     break;
             }
             return (result, false);
         }
         finally
         {
-            semaphore.Release();
-            locker.RemoveLock(key);
+            keyLock.Dispose();
         }
     }
 }

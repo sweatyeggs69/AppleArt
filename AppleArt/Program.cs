@@ -72,7 +72,7 @@ try
     builder.Services.AddScoped<ArtworkService>();
     builder.Services.AddSingleton<StaticArtworkCache>();
     builder.Services.AddScoped<StaticArtworkService>();
-    builder.Services.AddMemoryCache();
+    builder.Services.AddMemoryCache(options => options.SizeLimit = 50_000);
     builder.Services.AddSingleton<AlbumDetailsService>();
 
     builder.Services.AddCors(options =>
@@ -216,7 +216,7 @@ try
         CancellationToken ct) =>
     {
         response.Headers.CacheControl = "no-cache";
-        logger.LogInformation("Incoming Request: Metadata Search -> Artist: {Artist}, Album: {Album}, Title: {Title}", 
+        logger.LogDebug("Incoming Request: Metadata Search -> Artist: {Artist}, Album: {Album}, Title: {Title}", 
             artist, album, title ?? "N/A");
         
         if (string.IsNullOrWhiteSpace(artist) || string.IsNullOrWhiteSpace(album))
@@ -258,7 +258,7 @@ try
         CancellationToken ct) =>
     {
         response.Headers.CacheControl = "public, max-age=86400";
-        logger.LogInformation("Incoming Request: URL Search -> {AppleMusicUrl}", url);
+        logger.LogDebug("Incoming Request: URL Search -> {AppleMusicUrl}", url);
         
         if (!AppleMusicUrl.TryParse(url, out _))
             return Results.BadRequest("A valid Apple Music album or playlist URL must be provided.");
@@ -296,7 +296,7 @@ try
         HttpResponse response,
         CancellationToken ct) =>
     {
-        logger.LogInformation("Incoming Request: Static Search -> Artist: {Artist}, Album: {Album}", artist, album);
+        logger.LogDebug("Incoming Request: Static Search -> Artist: {Artist}, Album: {Album}", artist, album);
 
         if (string.IsNullOrWhiteSpace(artist) || string.IsNullOrWhiteSpace(album))
             return Results.BadRequest("Artist and Album must be provided.");
@@ -316,7 +316,7 @@ try
         HttpResponse response,
         CancellationToken ct) =>
     {
-        logger.LogInformation("Incoming Request: Static URL -> {AppleMusicUrl}", url);
+        logger.LogDebug("Incoming Request: Static URL -> {AppleMusicUrl}", url);
 
         // Static covers are offered for albums only.
         if (!AppleMusicUrl.TryParse(url, out AppleMusicCatalogTarget target) || target.ResourceType != "albums")
@@ -335,7 +335,7 @@ try
         HttpResponse response,
         CancellationToken ct) =>
     {
-        logger.LogInformation("Incoming Request: Artist Search -> Artist: {Artist}", artist);
+        logger.LogDebug("Incoming Request: Artist Search -> Artist: {Artist}", artist);
 
         if (string.IsNullOrWhiteSpace(artist))
             return Results.BadRequest("Artist must be provided.");
@@ -356,7 +356,7 @@ try
         HttpResponse response,
         CancellationToken ct) =>
     {
-        logger.LogInformation("Incoming Request: Album Details -> {Id} ({Country})", id, country);
+        logger.LogDebug("Incoming Request: Album Details -> {Id} ({Country})", id, country);
 
         string storefront = string.IsNullOrWhiteSpace(country) ? "us" : country.ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(id) || id.Length > 15 || !id.All(char.IsAsciiDigit))
@@ -410,7 +410,7 @@ try
         HttpResponse response,
         CancellationToken ct) =>
     {
-        logger.LogInformation("Incoming Request: Album Details Batch -> {Ids} ({Country})", ids, country);
+        logger.LogDebug("Incoming Request: Album Details Batch -> {Ids} ({Country})", ids, country);
 
         string storefront = string.IsNullOrWhiteSpace(country) ? "us" : country.ToLowerInvariant();
         string[] idList = (ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

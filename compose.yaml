@@ -12,3 +12,8 @@
       - CACHE_FILE_PATH=/app/data/cache_database.json
       - METADATA_RESOLUTION_CACHE_FILE_PATH=./data/cache_metadata_resolution.json
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -135,13 +135,15 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
     }
 
     private static readonly TimeSpan CatalogTokenLifetime = TimeSpan.FromHours(6);
+    private static readonly TimeSpan CatalogTokenRetryDelay = TimeSpan.FromMinutes(1);
     private static readonly SemaphoreSlim _catalogTokenLock = new(1, 1);
     private static string? _catalogToken;
     private static DateTime _catalogTokenFetchedAt = DateTime.MinValue;
+    private static DateTime _catalogTokenFailedAt = DateTime.MinValue;
 
-    private async Task<string?> GetCatalogTokenAsync(bool forceRefresh, CancellationToken ct)
+    private async Task<string?> GetCatalogTokenAsync(string? rejectedToken, CancellationToken ct)
     {
-        if (!forceRefresh && _catalogToken != null && DateTime.UtcNow - _catalogTokenFetchedAt < CatalogTokenLifetime)
+        if (rejectedToken == null && _catalogToken != null && DateTime.UtcNow - _catalogTokenFetchedAt < CatalogTokenLifetime)
         {
             return _catalogToken;
         }
@@ -149,9 +151,15 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         await _catalogTokenLock.WaitAsync(ct);
         try
         {
-            if (!forceRefresh && _catalogToken != null && DateTime.UtcNow - _catalogTokenFetchedAt < CatalogTokenLifetime)
+            bool fresh = _catalogToken != null && DateTime.UtcNow - _catalogTokenFetchedAt < CatalogTokenLifetime;
+            if (fresh && _catalogToken != rejectedToken)
             {
                 return _catalogToken;
+            }
+
+            if (DateTime.UtcNow - _catalogTokenFailedAt < CatalogTokenRetryDelay)
+            {
+                return null;
             }
 
             string? token = await GetBearerTokenAsync("https://music.apple.com/us/browse", ct);
@@ -159,6 +167,10 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             {
                 _catalogToken = token;
                 _catalogTokenFetchedAt = DateTime.UtcNow;
+            }
+            else if (!ct.IsCancellationRequested)
+            {
+                _catalogTokenFailedAt = DateTime.UtcNow;
             }
 
             return token;
@@ -178,9 +190,10 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             return (StaticArtworkLookupStatus.RateLimited, null);
         }
 
+        string? rejectedToken = null;
         for (int attempt = 0; attempt < 2; attempt++)
         {
-            string? token = await GetCatalogTokenAsync(forceRefresh: attempt > 0, ct);
+            string? token = await GetCatalogTokenAsync(rejectedToken, ct);
             if (token == null)
             {
                 return (StaticArtworkLookupStatus.Error, null);
@@ -194,11 +207,12 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                 request.Headers.Add("Origin", "https://music.apple.com");
                 request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 
-                Log.Information("Outgoing catalog request: {Url}", apiUrl);
+                Log.Debug("Outgoing catalog request: {Url}", apiUrl);
                 using HttpResponseMessage response = await httpClient.SendAsync(request, ct);
 
                 if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0)
                 {
+                    rejectedToken = token;
                     continue;
                 }
 
@@ -218,7 +232,8 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                 statusService.ReportSuccess();
                 return (StaticArtworkLookupStatus.Found, JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)));
             }
-            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException ||
+                                       (ex is TaskCanceledException && !ct.IsCancellationRequested))
             {
                 Log.Error("Catalog request failed: {Message}", ex.Message);
                 return (StaticArtworkLookupStatus.Error, null);

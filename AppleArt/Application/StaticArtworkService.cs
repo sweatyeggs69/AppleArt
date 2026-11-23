@@ -37,8 +37,7 @@ public class StaticArtworkService(
 
         // The lock key is prefixed so it never collides with an animated artwork lookup for the same URL.
         string lockKey = "static|" + key;
-        SemaphoreSlim semaphore = locker.GetLock(lockKey);
-        await semaphore.WaitAsync(ct);
+        IDisposable keyLock = await locker.LockAsync(lockKey, ct);
 
         try
         {
@@ -71,8 +70,7 @@ public class StaticArtworkService(
         }
         finally
         {
-            semaphore.Release();
-            locker.RemoveLock(lockKey);
+            keyLock.Dispose();
         }
     }
 }

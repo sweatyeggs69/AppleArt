@@ -65,7 +65,7 @@ public partial class ArtworkService(
         ArtworkCacheEntry? cachedEntry = cache.GetByUrl(normalizedUrl);
         if (cachedEntry != null && !NeedsTallArtworkRefresh(cachedEntry))
         {
-            Log.Information("URL cache hit: {AppleMusicUrl}", normalizedUrl);
+            Log.Debug("URL cache hit: {AppleMusicUrl}", normalizedUrl);
             return (cachedEntry, true);
         }
 
@@ -74,15 +74,14 @@ public partial class ArtworkService(
                 ? "Cache entry is missing tall artwork: {AppleMusicUrl}"
                 : "URL cache miss: {AppleMusicUrl}", normalizedUrl);
 
-        SemaphoreSlim semaphore = locker.GetLock(normalizedUrl);
-        await semaphore.WaitAsync(ct);
+        IDisposable keyLock = await locker.LockAsync(normalizedUrl, ct);
 
         try
         {
             cachedEntry = cache.GetByUrl(normalizedUrl);
             if (cachedEntry != null && !NeedsTallArtworkRefresh(cachedEntry))
             {
-                Log.Information("URL cache hit after lock: {AppleMusicUrl}", normalizedUrl);
+                Log.Debug("URL cache hit after lock: {AppleMusicUrl}", normalizedUrl);
                 return (cachedEntry, true);
             }
 
@@ -136,8 +135,7 @@ public partial class ArtworkService(
         }
         finally
         {
-            semaphore.Release();
-            locker.RemoveLock(normalizedUrl);
+            keyLock.Dispose();
         }
     }
 
@@ -148,13 +146,13 @@ public partial class ArtworkService(
 
         if (lookup.Status == MetadataResolutionStatus.NoMatch)
         {
-            Log.Information("Metadata resolution no-match cache hit: Artist={Artist}, Album={Album}.", artist, album);
+            Log.Debug("Metadata resolution no-match cache hit: Artist={Artist}, Album={Album}.", artist, album);
             return (null, false);
         }
 
         if (lookup.Status == MetadataResolutionStatus.Resolved && !string.IsNullOrWhiteSpace(lookup.ResolvedAppleMusicUrl))
         {
-            Log.Information("Metadata resolution cache hit: Artist={Artist}, Album={Album} -> {AppleMusicUrl}", artist, album, lookup.ResolvedAppleMusicUrl);
+            Log.Debug("Metadata resolution cache hit: Artist={Artist}, Album={Album} -> {AppleMusicUrl}", artist, album, lookup.ResolvedAppleMusicUrl);
 
             (ArtworkCacheEntry? resolvedEntry, bool resolvedIsCached) = await GetArtworkByUrlAsync(lookup.ResolvedAppleMusicUrl, ct);
             if (WasThrottled)
@@ -186,7 +184,7 @@ public partial class ArtworkService(
         {
             if (!NeedsTallArtworkRefresh(cachedEntry))
             {
-                Log.Information("Cache hit (by metadata): Artist={Artist}, Album={Album}.", artist, album);
+                Log.Debug("Cache hit (by metadata): Artist={Artist}, Album={Album}.", artist, album);
 
                 // Remember the match, so the next request for this pair is a key lookup instead of a fuzzy scan.
                 metadataResolutionCache.SaveResolvedUrl(artist, album, cachedEntry.AppleMusicUrl);
@@ -197,7 +195,7 @@ public partial class ArtworkService(
         }
         else
         {
-            Log.Information("Cache miss (by metadata): Artist={Artist}, Album={Album}", artist, album);
+            Log.Debug("Cache miss (by metadata): Artist={Artist}, Album={Album}", artist, album);
         }
 
         if (!TryStartAppleLookup())
@@ -205,7 +203,7 @@ public partial class ArtworkService(
             return (cachedEntry, cachedEntry != null);
         }
 
-        Log.Information("Triggering web search: Artist={Artist}, Album={Album}, Title={Title}", artist, album, title ?? "");
+        Log.Debug("Triggering web search: Artist={Artist}, Album={Album}, Title={Title}", artist, album, title ?? "");
 
         AppleMusicWebSearchResult webSearchResult = await appleMusicClient.GetAppleMusicUrlViaWebSearchAsync(artist, album, title, ct);
 
@@ -253,7 +251,7 @@ public partial class ArtworkService(
                 continue;
             }
 
-            Log.Information("Search resolved URL: {AppleMusicUrl}", candidateUrl);
+            Log.Debug("Search resolved URL: {AppleMusicUrl}", candidateUrl);
             metadataResolutionCache.SaveResolvedUrl(artist, album, candidateUrl);
             return (candidateEntry, candidateIsCached);
         }

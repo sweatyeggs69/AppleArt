@@ -21,6 +21,9 @@ public sealed class CacheInitializationHostedService(
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    private static readonly TimeSpan NoMatchTtl = TimeSpan.FromDays(30);
+    private static readonly TimeSpan PurgeInterval = TimeSpan.FromDays(1);
+
     private async Task InitializeAsync(CancellationToken cancellationToken)
     {
         try
@@ -37,6 +40,7 @@ public sealed class CacheInitializationHostedService(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             logger.LogInformation("Cache initialization was cancelled during shutdown.");
+            return;
         }
         catch (Exception ex)
         {
@@ -45,6 +49,39 @@ public sealed class CacheInitializationHostedService(
             logger.LogCritical(ex, "Cache initialization failed. Shutting down.");
             Environment.ExitCode = 1;
             lifetime.StopApplication();
+            return;
+        }
+
+        await PurgeExpiredNoMatchesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task PurgeExpiredNoMatchesAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(PurgeInterval);
+        do
+        {
+            try
+            {
+                int removed = database.PurgeExpiredNoMatches(NoMatchTtl);
+                logger.LogDebug("Removed {Count} expired no-match rows", removed);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning("Purging expired no-match rows failed: {Message}", ex.Message);
+            }
+        }
+        while (await WaitAsync(timer, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<bool> WaitAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
         }
     }
 }

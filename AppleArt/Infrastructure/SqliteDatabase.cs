@@ -215,6 +215,18 @@ public sealed class SqliteDatabase
         }
     }
 
+    public int PurgeExpiredNoMatches(TimeSpan noMatchTtl)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            DELETE FROM static_artworks WHERE status = {(int)StaticArtworkLookupStatus.NoMatch} AND last_fetched < $cutoff;
+            DELETE FROM metadata_resolutions WHERE status = {(int)MetadataResolutionStatus.NoMatch} AND last_resolved < $cutoff;
+            """;
+        command.Parameters.AddWithValue("$cutoff", ToUnixMilliseconds(DateTime.UtcNow - noMatchTtl));
+        return command.ExecuteNonQuery();
+    }
+
     public void MarkInitialized() => _isInitialized = true;
 
     public void TruncateWriteAheadLog()
