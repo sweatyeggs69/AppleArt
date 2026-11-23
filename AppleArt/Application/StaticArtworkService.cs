@@ -9,15 +9,8 @@ namespace AnimatedArtworks.Application;
 public class StaticArtworkService(
     IAppleMusicClient appleMusicClient,
     StaticArtworkCache cache,
-    KeyedLocker locker,
-    AppleLookupLimiter lookupLimiter)
+    KeyedLocker locker)
 {
-    private string _client = "unknown";
-
-    public bool WasThrottled { get; private set; }
-
-    public void SetClient(string client) => _client = client;
-
     public Task<(StaticArtworkLookupResult Result, bool IsCached)> SearchAsync(string artist, string album, CancellationToken ct) =>
         GetAsync(StaticArtworkCache.SearchKey(artist, album), () => appleMusicClient.SearchStaticArtworkAsync(artist, album, ct), ct);
 
@@ -45,18 +38,6 @@ public class StaticArtworkService(
             if (hasCached && !isStale)
             {
                 return (cached, true);
-            }
-
-            if (!lookupLimiter.TryAcquire(_client))
-            {
-                Log.Information("Uncached Apple lookup limit reached for client {Client}", _client);
-                if (hasCached)
-                {
-                    return (cached, true);
-                }
-
-                WasThrottled = true;
-                return (new StaticArtworkLookupResult(StaticArtworkLookupStatus.RateLimited), false);
             }
 
             StaticArtworkLookupResult result = await fetch();

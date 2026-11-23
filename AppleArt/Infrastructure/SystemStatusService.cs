@@ -4,31 +4,39 @@ namespace AnimatedArtworks.Infrastructure;
 
 public class SystemStatusService
 {
-    private static readonly TimeSpan RateLimitBackoff = TimeSpan.FromHours(1);
+    private static readonly TimeSpan InitialBackoff = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan MaxBackoff = TimeSpan.FromHours(1);
 
-    public bool IsRateLimited { get; private set; }
-    public DateTime LastErrorTime { get; private set; } = DateTime.MinValue;
+    private readonly object _lock = new();
+    private int _consecutiveRateLimits;
+    private DateTime _backoffUntil = DateTime.MinValue;
+
+    public bool IsRateLimited => _consecutiveRateLimits > 0;
 
     public void ReportRateLimit()
     {
-        IsRateLimited = true;
-        LastErrorTime = DateTime.UtcNow;
+        lock (_lock)
+        {
+            DateTime now = DateTime.UtcNow;
+            if (now < _backoffUntil)
+            {
+                return;
+            }
+
+            _consecutiveRateLimits++;
+            double minutes = Math.Min(MaxBackoff.TotalMinutes, InitialBackoff.TotalMinutes * Math.Pow(2, Math.Min(_consecutiveRateLimits - 1, 10)));
+            _backoffUntil = now + TimeSpan.FromMinutes(minutes);
+        }
     }
 
     public void ReportSuccess()
     {
-        if (IsRateLimited)
+        lock (_lock)
         {
-            IsRateLimited = false;
+            _consecutiveRateLimits = 0;
+            _backoffUntil = DateTime.MinValue;
         }
     }
 
-    public bool IsInBackoff()
-    {
-        if (!IsRateLimited)
-            return false;
-
-        var now = DateTime.UtcNow;
-        return (now - LastErrorTime) < RateLimitBackoff;
-    }
+    public bool IsInBackoff() => DateTime.UtcNow < _backoffUntil;
 }

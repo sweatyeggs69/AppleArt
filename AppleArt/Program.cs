@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.RateLimiting;
 using AnimatedArtworks.Application;
@@ -54,9 +56,10 @@ try
     builder.Services.AddSingleton<KeyedLocker>();
 
     builder.Services.AddSingleton(new AppleLookupLimiter(
-        perClientPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE", 20),
-        bulkPerClientPerMinute: builder.Configuration.GetValue("APPLE_BULK_LOOKUPS_PER_CLIENT_PER_MINUTE", 60),
-        globalPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_MINUTE", 120)));
+        perClientPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_CLIENT_PER_MINUTE", 40),
+        bulkPerClientPerMinute: builder.Configuration.GetValue("APPLE_BULK_LOOKUPS_PER_CLIENT_PER_MINUTE", 120),
+        relayedPerMinute: builder.Configuration.GetValue("APPLE_LOOKUPS_PER_MINUTE", 240),
+        directPerMinute: builder.Configuration.GetValue("APPLE_DIRECT_LOOKUPS_PER_MINUTE", 60)));
 
     builder.Services.AddTransient<AppleEgressHandler>();
     builder.Services.AddHttpClient<IAppleMusicClient, AppleMusicClient>(client =>
@@ -140,10 +143,12 @@ try
     var originSecret = Environment.GetEnvironmentVariable("ORIGIN_SECRET");
     if (!string.IsNullOrEmpty(originSecret))
     {
+        byte[] originSecretBytes = Encoding.UTF8.GetBytes(originSecret);
         app.Use(async (context, next) =>
         {
             if (context.Request.Path.StartsWithSegments("/api") &&
-                context.Request.Headers["X-Origin-Secret"] != originSecret)
+                !CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(context.Request.Headers["X-Origin-Secret"].ToString()), originSecretBytes))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -165,6 +170,8 @@ try
                 await context.Response.WriteAsync("Cache is still initializing. Please retry shortly.");
                 return;
             }
+
+            context.RequestServices.GetRequiredService<AppleLookupLimiter>().BeginRequest(ClientIdentity.LookupClient(context));
         }
 
         await next();
@@ -224,7 +231,6 @@ try
         if (artist.Length > MaxQueryLength || album.Length > MaxQueryLength || title?.Length > MaxQueryLength)
             return Results.BadRequest("Artist, Album and Title must be 200 characters or fewer.");
         
-        service.SetClient(ClientIdentity.LookupClient(context));
         (ArtworkCacheEntry? entry, bool isCached) = await service.GetArtworkByDetailsAsync(artist, album, title, ct);
         if (entry == null && service.WasThrottled)
             return Throttled(response);
@@ -263,7 +269,6 @@ try
         if (!AppleMusicUrl.TryParse(url, out _))
             return Results.BadRequest("A valid Apple Music album or playlist URL must be provided.");
 
-        service.SetClient(ClientIdentity.LookupClient(context));
         var (entry, isCached) = await service.GetArtworkByUrlAsync(url, ct);
         if (entry == null && service.WasThrottled)
             return Throttled(response);
@@ -303,7 +308,6 @@ try
         if (artist.Length > MaxQueryLength || album.Length > MaxQueryLength)
             return Results.BadRequest("Artist and Album must be 200 characters or fewer.");
 
-        service.SetClient(ClientIdentity.LookupClient(context));
         var (result, isCached) = await service.SearchAsync(artist, album, ct);
         return StaticArtworkResponse(result, isCached, response);
     }).RequireRateLimiting("ApiRateLimit");
@@ -322,7 +326,6 @@ try
         if (!AppleMusicUrl.TryParse(url, out AppleMusicCatalogTarget target) || target.ResourceType != "albums")
             return Results.BadRequest("A valid Apple Music album URL must be provided.");
 
-        service.SetClient(ClientIdentity.LookupClient(context));
         var (result, isCached) = await service.LookupAsync(target, ct);
         return StaticArtworkResponse(result, isCached, response);
     }).RequireRateLimiting("ApiRateLimit");
@@ -342,7 +345,6 @@ try
         if (artist.Length > MaxQueryLength)
             return Results.BadRequest("Artist must be 200 characters or fewer.");
 
-        service.SetClient(ClientIdentity.LookupClient(context));
         var (result, isCached) = await service.SearchArtistAsync(artist, ct);
         return StaticArtworkResponse(result, isCached, response);
     }).RequireRateLimiting("ApiRateLimit");
@@ -364,7 +366,7 @@ try
         if (storefront.Length != 2 || !storefront.All(char.IsAsciiLetterLower))
             return Results.BadRequest("Country must be a two-letter storefront code.");
 
-        var (result, isCached) = await service.LookupAsync(id, storefront, ClientIdentity.LookupClient(context), ct);
+        var (result, isCached) = await service.LookupAsync(id, storefront, ct);
         switch (result.Status)
         {
             case StaticArtworkLookupStatus.Found:
@@ -419,7 +421,7 @@ try
         if (storefront.Length != 2 || !storefront.All(char.IsAsciiLetterLower))
             return Results.BadRequest("Country must be a two-letter storefront code.");
 
-        var (status, albums) = await service.LookupBatchAsync(idList, storefront, ClientIdentity.LookupClient(context), ct);
+        var (status, albums) = await service.LookupBatchAsync(idList, storefront, ct);
         switch (status)
         {
             case StaticArtworkLookupStatus.Found:

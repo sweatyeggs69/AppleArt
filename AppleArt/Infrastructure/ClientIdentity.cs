@@ -45,10 +45,11 @@ public static class ClientIdentity
     public const string BulkPrefix = "bulk|";
 
     // Key for the Apple lookup limiter: bulk work relayed by the Worker (library cleanup) is limited separately from interactive lookups.
-    public static string LookupClient(HttpContext context)
+    public static AppleLookupClient LookupClient(HttpContext context)
     {
         string client = Resolve(context);
-        return IsFromProxy(context.Request) && context.Request.Headers["X-Tromme-Bulk"].ToString() == "1" ? BulkPrefix + client : client;
+        bool relayed = IsFromProxy(context.Request);
+        return new AppleLookupClient(relayed && context.Request.Headers["X-Tromme-Bulk"].ToString() == "1" ? BulkPrefix + client : client, relayed);
     }
 
     private static bool IsFromProxy(HttpRequest request)

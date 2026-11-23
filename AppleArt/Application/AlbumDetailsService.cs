@@ -12,15 +12,14 @@ namespace AnimatedArtworks.Application;
 public class AlbumDetailsService(
     IAppleMusicClient appleMusicClient,
     IMemoryCache cache,
-    KeyedLocker locker,
-    AppleLookupLimiter lookupLimiter)
+    KeyedLocker locker)
 {
     private static readonly TimeSpan FoundTtl = TimeSpan.FromDays(1);
     private static readonly TimeSpan NoMatchTtl = TimeSpan.FromHours(1);
 
     // Cached albums are answered without Apple; the rest share one catalog request and one lookup permit.
     public async Task<(StaticArtworkLookupStatus Status, IReadOnlyDictionary<string, AppleAlbumDetailsResult> Albums)> LookupBatchAsync(
-        IReadOnlyList<string> ids, string storefront, string client, CancellationToken ct)
+        IReadOnlyList<string> ids, string storefront, CancellationToken ct)
     {
         Dictionary<string, AppleAlbumDetailsResult> albums = [];
         List<string> missing = [];
@@ -38,12 +37,6 @@ public class AlbumDetailsService(
         if (missing.Count == 0)
         {
             return (StaticArtworkLookupStatus.Found, albums);
-        }
-
-        if (!lookupLimiter.TryAcquire(client))
-        {
-            Log.Information("Uncached Apple lookup limit reached for client {Client}", client);
-            return (StaticArtworkLookupStatus.RateLimited, albums);
         }
 
         var (status, fetched) = await appleMusicClient.LookupAlbumDetailsBatchAsync(missing, storefront, ct);
@@ -72,7 +65,7 @@ public class AlbumDetailsService(
 
     private static string Key(string id, string storefront) => $"album-details|{storefront}|{id}";
 
-    public async Task<(AppleAlbumDetailsResult Result, bool IsCached)> LookupAsync(string id, string storefront, string client, CancellationToken ct)
+    public async Task<(AppleAlbumDetailsResult Result, bool IsCached)> LookupAsync(string id, string storefront, CancellationToken ct)
     {
         string key = Key(id, storefront);
         if (cache.TryGetValue(key, out AppleAlbumDetailsResult cached))
@@ -86,12 +79,6 @@ public class AlbumDetailsService(
             if (cache.TryGetValue(key, out cached))
             {
                 return (cached, true);
-            }
-
-            if (!lookupLimiter.TryAcquire(client))
-            {
-                Log.Information("Uncached Apple lookup limit reached for client {Client}", client);
-                return (new AppleAlbumDetailsResult(StaticArtworkLookupStatus.RateLimited), false);
             }
 
             AppleAlbumDetailsResult result = await appleMusicClient.LookupAlbumDetailsAsync(id, storefront, ct);

@@ -49,9 +49,10 @@ public sealed class SqliteDatabase
                 search_count      INTEGER NOT NULL DEFAULT 0
             ) WITHOUT ROWID;
 
-            -- Covers the fuzzy artist/album match, which has to scan every entry.
-            CREATE INDEX IF NOT EXISTS ix_artworks_fuzzy_match
-                ON artworks (normalized_artist, normalized_album, is_animated, album);
+            -- Covers the artist/album match: an exact album seek, then the artist check on the matching rows.
+            DROP INDEX IF EXISTS ix_artworks_fuzzy_match;
+            CREATE INDEX IF NOT EXISTS ix_artworks_album_match
+                ON artworks (normalized_album, normalized_artist, is_animated, album);
 
             CREATE INDEX IF NOT EXISTS ix_artworks_animated_recent
                 ON artworks (last_fetched DESC) WHERE is_animated = 1;

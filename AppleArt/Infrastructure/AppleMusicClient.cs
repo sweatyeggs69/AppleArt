@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using Serilog;
 
 namespace AnimatedArtworks.Infrastructure;
-public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService statusService) : IAppleMusicClient
+public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService statusService, AppleLookupLimiter lookupLimiter) : IAppleMusicClient
 {
     private static readonly SemaphoreSlim _appleMusicSemaphore = new(2, 2);
 
@@ -71,7 +71,7 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
             return new(AppleMusicWebSearchStatus.NoMatch);
         }
 
-        return new(AppleMusicWebSearchStatus.Found, candidates.OrderBy(c => c.Rank).Select(c => c.Url).Take(5).ToList());
+        return new(AppleMusicWebSearchStatus.Found, candidates.OrderBy(c => c.Rank).Select(c => c.Url).Take(3).ToList());
     }
 
     /// <summary>
@@ -193,6 +193,11 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         string? rejectedToken = null;
         for (int attempt = 0; attempt < 2; attempt++)
         {
+            if (!lookupLimiter.TryAcquireForCurrentRequest())
+            {
+                return (StaticArtworkLookupStatus.RateLimited, null);
+            }
+
             string? token = await GetCatalogTokenAsync(rejectedToken, ct);
             if (token == null)
             {
@@ -210,17 +215,23 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
                 Log.Debug("Outgoing catalog request: {Url}", apiUrl);
                 using HttpResponseMessage response = await httpClient.SendAsync(request, ct);
 
-                if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0)
+                if (response.StatusCode is (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) && attempt == 0)
                 {
                     rejectedToken = token;
                     continue;
                 }
 
-                if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
                     Log.Warning("Rate Limit hit while calling AMP API: {StatusCode}", response.StatusCode);
                     statusService.ReportRateLimit();
                     return (StaticArtworkLookupStatus.RateLimited, null);
+                }
+
+                if (response.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    Log.Warning("Catalog request was refused: {StatusCode} {Url}", response.StatusCode, apiUrl);
+                    return (StaticArtworkLookupStatus.Error, null);
                 }
 
                 if (response.StatusCode == HttpStatusCode.NotFound)
@@ -640,6 +651,11 @@ public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService
         if (status == StaticArtworkLookupStatus.RateLimited)
         {
             return new(AppleMusicPageParseStatus.RateLimited);
+        }
+
+        if (status == StaticArtworkLookupStatus.NoMatch)
+        {
+            return new(AppleMusicPageParseStatus.NotFound);
         }
 
         if (status != StaticArtworkLookupStatus.Found)

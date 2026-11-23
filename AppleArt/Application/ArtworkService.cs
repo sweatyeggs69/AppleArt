@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using AnimatedArtworks.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 
 namespace AnimatedArtworks.Application;
@@ -11,30 +12,15 @@ public partial class ArtworkService(
     ArtworkCache cache,
     MetadataResolutionCache metadataResolutionCache,
     KeyedLocker locker,
-    AppleLookupLimiter lookupLimiter)
+    AppleLookupLimiter lookupLimiter,
+    IMemoryCache notFoundCache)
 {
-    private string _client = "unknown";
-    private bool _lookupPermitted;
+    public bool WasThrottled => lookupLimiter.CurrentRequestThrottled;
 
-    public bool WasThrottled { get; private set; }
+    private static readonly TimeSpan NotFoundTtl = TimeSpan.FromDays(1);
+    private static readonly TimeSpan NoArtworkRecheckInterval = TimeSpan.FromDays(90);
 
-    public void SetClient(string client) => _client = client;
-
-    // One permit per incoming request, taken only once it actually has to reach Apple.
-    private bool TryStartAppleLookup()
-    {
-        if (_lookupPermitted) return true;
-        if (WasThrottled) return false;
-
-        _lookupPermitted = lookupLimiter.TryAcquire(_client);
-        if (!_lookupPermitted)
-        {
-            WasThrottled = true;
-            Log.Information("Uncached Apple lookup limit reached for client {Client}", _client);
-        }
-
-        return _lookupPermitted;
-    }
+    private static string NotFoundKey(string normalizedUrl) => $"artwork-not-found|{normalizedUrl}";
 
     private static readonly TimeSpan NegativeSearchCacheTtl = TimeSpan.FromDays(30);
 
@@ -42,31 +28,46 @@ public partial class ArtworkService(
     // 20th Anniversary release for the plain album); those are looked up again once.
     private static readonly DateTime EditionCheckCutoff = new(2026, 10, 21, 16, 0, 0, DateTimeKind.Utc);
 
-    private static bool NeedsTallArtworkRefresh(ArtworkCacheEntry entry)
+    private static bool NeedsRefresh(ArtworkCacheEntry entry)
     {
         bool hasSquareArtwork = !string.IsNullOrWhiteSpace(entry.M3u8Url) && entry.M3u8Url != "NONE";
         bool missingTallArtwork = string.IsNullOrWhiteSpace(entry.M3u8UrlTall);
         bool updatedBeforeTallImplement = entry.LastFetched.Date < DateTimeOffset.FromUnixTimeSeconds(1777391211).UtcDateTime;
 
-        return hasSquareArtwork && missingTallArtwork && updatedBeforeTallImplement;
+        bool hasNoArtwork = !CacheKeyNormalizer.HasAnimatedArtwork(entry.M3u8Url, entry.M3u8UrlTall);
+        bool noArtworkIsOld = DateTime.UtcNow - entry.LastFetched >= NoArtworkRecheckInterval;
+
+        return (hasSquareArtwork && missingTallArtwork && updatedBeforeTallImplement) || (hasNoArtwork && noArtworkIsOld);
     }
 
     public async Task<(ArtworkCacheEntry? Entry, bool IsCached)> GetArtworkByUrlAsync(string appleMusicUrl,
         CancellationToken ct = default)
     {
+        var (entry, isCached, _) = await LookupUrlAsync(appleMusicUrl, ct);
+        return (entry, isCached);
+    }
+
+    private async Task<(ArtworkCacheEntry? Entry, bool IsCached, bool NotFound)> LookupUrlAsync(string appleMusicUrl,
+        CancellationToken ct)
+    {
         if (!AppleMusicUrl.TryParse(appleMusicUrl, out AppleMusicCatalogTarget target))
         {
             Log.Information("Rejected non-catalog Apple Music URL: {AppleMusicUrl}", appleMusicUrl);
-            return (null, false);
+            return (null, false, false);
         }
 
         string normalizedUrl = target.CacheKey;
 
         ArtworkCacheEntry? cachedEntry = cache.GetByUrl(normalizedUrl);
-        if (cachedEntry != null && !NeedsTallArtworkRefresh(cachedEntry))
+        if (cachedEntry != null && !NeedsRefresh(cachedEntry))
         {
             Log.Debug("URL cache hit: {AppleMusicUrl}", normalizedUrl);
-            return (cachedEntry, true);
+            return (cachedEntry, true, false);
+        }
+
+        if (cachedEntry == null && notFoundCache.TryGetValue(NotFoundKey(normalizedUrl), out _))
+        {
+            return (null, false, true);
         }
 
         Log.Debug(
@@ -79,15 +80,10 @@ public partial class ArtworkService(
         try
         {
             cachedEntry = cache.GetByUrl(normalizedUrl);
-            if (cachedEntry != null && !NeedsTallArtworkRefresh(cachedEntry))
+            if (cachedEntry != null && !NeedsRefresh(cachedEntry))
             {
                 Log.Debug("URL cache hit after lock: {AppleMusicUrl}", normalizedUrl);
-                return (cachedEntry, true);
-            }
-
-            if (!TryStartAppleLookup())
-            {
-                return (cachedEntry, cachedEntry != null);
+                return (cachedEntry, true, false);
             }
 
             AppleMusicPageParseResult parseResult = await appleMusicClient.ParseAppleMusicPageAsync(target, ct);
@@ -97,13 +93,19 @@ public partial class ArtworkService(
                 Log.Information("Album page request was rate limited for URL: {AppleMusicUrl}.", normalizedUrl);
 
                 // Return cached entry if available, even if it may be stale.
-                return (cachedEntry, cachedEntry != null);
+                return (cachedEntry, cachedEntry != null, false);
+            }
+
+            if (parseResult.Status == AppleMusicPageParseStatus.NotFound)
+            {
+                notFoundCache.Set(NotFoundKey(normalizedUrl), true, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = NotFoundTtl, Size = 1 });
+                return (cachedEntry, cachedEntry != null, cachedEntry == null);
             }
 
             if (parseResult.Status == AppleMusicPageParseStatus.Error)
             {
                 Log.Information("Album page request failed for URL: {AppleMusicUrl}.", normalizedUrl);
-                return (null, false);
+                return (null, false, false);
             }
 
             string? m3U8Url = parseResult.UrlSquare;
@@ -131,7 +133,7 @@ public partial class ArtworkService(
                 album,
                 m3U8Url != null || m3U8UrlTall != null);
 
-            return (newEntry, false);
+            return (newEntry, false, false);
         }
         finally
         {
@@ -182,7 +184,7 @@ public partial class ArtworkService(
         }
         if (cachedEntry != null)
         {
-            if (!NeedsTallArtworkRefresh(cachedEntry))
+            if (!NeedsRefresh(cachedEntry))
             {
                 Log.Debug("Cache hit (by metadata): Artist={Artist}, Album={Album}.", artist, album);
 
@@ -196,11 +198,6 @@ public partial class ArtworkService(
         else
         {
             Log.Debug("Cache miss (by metadata): Artist={Artist}, Album={Album}", artist, album);
-        }
-
-        if (!TryStartAppleLookup())
-        {
-            return (cachedEntry, cachedEntry != null);
         }
 
         Log.Debug("Triggering web search: Artist={Artist}, Album={Album}, Title={Title}", artist, album, title ?? "");
@@ -237,10 +234,10 @@ public partial class ArtworkService(
         bool lookupFailed = false;
         foreach (string candidateUrl in webSearchResult.Urls ?? [])
         {
-            (ArtworkCacheEntry? candidateEntry, bool candidateIsCached) = await GetArtworkByUrlAsync(candidateUrl, ct);
+            (ArtworkCacheEntry? candidateEntry, bool candidateIsCached, bool candidateNotFound) = await LookupUrlAsync(candidateUrl, ct);
             if (candidateEntry == null)
             {
-                lookupFailed = true;
+                lookupFailed |= !candidateNotFound;
                 continue;
             }
 

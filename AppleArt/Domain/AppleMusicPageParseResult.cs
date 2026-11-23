@@ -2,6 +2,7 @@ public enum AppleMusicPageParseStatus
 {
     Success,
     RateLimited,
+    NotFound,
     Error
 }
 
