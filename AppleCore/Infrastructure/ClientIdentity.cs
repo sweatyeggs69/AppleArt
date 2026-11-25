@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 
-namespace AnimatedArtworks.Infrastructure;
+namespace AppleCore.Infrastructure;
 
 public static class ClientIdentity
 {

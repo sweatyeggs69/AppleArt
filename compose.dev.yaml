@@ -1,8 +1,8 @@
 services:
-  appleart:
+  applecore:
     build:
-      context: ./AppleArt
+      context: ./AppleCore
       dockerfile: Dockerfile
-    image: appleart:local-dev
+    image: applecore:local-dev
     environment:
       - ASPNETCORE_ENVIRONMENT=Development

@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace AnimatedArtworks.Infrastructure;
+namespace AppleCore.Infrastructure;
 
 public static partial class RomanNumerals
 {

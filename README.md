@@ -1,7 +1,7 @@
-# [<img src="AppleArt/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://amaa.tromme.app) AppleArt
+# [<img src="AppleCore/wwwroot/assets/logo.png" width="40" alt="" style="vertical-align: middle;">](https://amaa.tromme.app) AppleCore
 
 [![Website](https://img.shields.io/badge/Public_Instance-blue?style=for-the-badge)](https://amaa.tromme.app)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/sweatyeggs69/AppleArt/docker-publish.yml?style=for-the-badge)](https://github.com/sweatyeggs69/AppleArt/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/sweatyeggs69/AppleCore/docker-publish.yml?style=for-the-badge)](https://github.com/sweatyeggs69/AppleCore/actions)
 
 A lightweight tool to fetch and display Apple Music’s animated album covers (HLS/m3u8) and static album covers (1000x1000). Supports both square and tall animated variants, as well as playlist artworks. Built with .NET 10 and a minimal Tailwind CSS frontend. Powers animated artwork in [Tromme](https://github.com/sweatyeggs69/Tromme).
 

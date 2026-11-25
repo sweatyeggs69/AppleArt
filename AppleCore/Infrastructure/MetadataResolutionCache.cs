@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Data.Sqlite;
 
-namespace AnimatedArtworks.Infrastructure;
+namespace AppleCore.Infrastructure;
 
 public sealed class MetadataResolutionCache(SqliteDatabase database)
 {

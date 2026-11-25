@@ -1,7 +1,7 @@
 ﻿services:
-  appleart:
-    container_name: appleart
-    image: sweatyeggs69/appleart:latest
+  applecore:
+    container_name: applecore
+    image: sweatyeggs69/applecore:latest
     ports:
       - "8080:8080"
     volumes:

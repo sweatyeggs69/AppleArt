@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.RateLimiting;
 using Serilog;
 
-namespace AnimatedArtworks.Infrastructure;
+namespace AppleCore.Infrastructure;
 
 public readonly record struct AppleLookupClient(string Key, bool Relayed);
 

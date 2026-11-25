@@ -1,6 +1,6 @@
 using System;
 
-namespace AnimatedArtworks.Infrastructure;
+namespace AppleCore.Infrastructure;
 
 public class SystemStatusService
 {

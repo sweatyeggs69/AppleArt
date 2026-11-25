@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Microsoft.Data.Sqlite;
 
-namespace AnimatedArtworks.Infrastructure;
+namespace AppleCore.Infrastructure;
 
 public sealed class ArtworkCache(SqliteDatabase database)
 {
