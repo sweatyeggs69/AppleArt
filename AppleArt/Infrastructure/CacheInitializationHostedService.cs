@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 
 public sealed class CacheInitializationHostedService(
     SqliteDatabase database,

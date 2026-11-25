@@ -2,7 +2,7 @@ using System;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 
 public static class CacheKeyNormalizer
 {

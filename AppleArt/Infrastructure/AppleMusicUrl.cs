@@ -1,7 +1,7 @@
 using System;
 using System.Text.RegularExpressions;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 
 public readonly record struct AppleMusicCatalogTarget(string Storefront, string ResourceType, string Id)
 {

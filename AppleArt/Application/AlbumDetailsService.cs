@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using AppleCore.Infrastructure;
+using AnimatedArtworks.Infrastructure;
 using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 
-namespace AppleCore.Application;
+namespace AnimatedArtworks.Application;
 
 public class AlbumDetailsService(
     IAppleMusicClient appleMusicClient,

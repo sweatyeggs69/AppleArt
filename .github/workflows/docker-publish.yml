@@ -11,6 +11,8 @@ on:
       - "compose*.yaml"
   workflow_dispatch:
 
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/appleart
 
 jobs:
   build-and-push:
@@ -35,9 +37,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/applecore
-            ${{ secrets.DOCKERHUB_USERNAME }}/appleart
+          images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
             type=sha,format=short
@@ -45,7 +45,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./AppleCore
+          context: ./AppleArt
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 
 /// <summary>
 /// One-time import of the former JSON cache files into SQLite. Files are streamed entry by entry,

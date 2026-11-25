@@ -8,8 +8,8 @@
 
 **/data/**
 
-AppleCore/cache_database.json
-AppleCore/cache_database.json.bak
-AppleCore/metadata_resolution_cache.json
-AppleCore/metadata_resolution_cache.json.bak
-AppleCore/cache.db*
+AppleArt/cache_database.json
+AppleArt/cache_database.json.bak
+AppleArt/metadata_resolution_cache.json
+AppleArt/metadata_resolution_cache.json.bak
+AppleArt/cache.db*

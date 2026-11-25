@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 public partial class AppleMusicClient(HttpClient httpClient, SystemStatusService statusService, AppleLookupLimiter lookupLimiter) : IAppleMusicClient
 {
     private static readonly SemaphoreSlim _appleMusicSemaphore = new(2, 2);

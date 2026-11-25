@@ -1,11 +1,11 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using AppleCore.Infrastructure;
+using AnimatedArtworks.Infrastructure;
 using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 
-namespace AppleCore.Application;
+namespace AnimatedArtworks.Application;
 
 public partial class ArtworkService(
     IAppleMusicClient appleMusicClient,

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 
 // Persisted like animated artwork: found results are kept for good, no-matches expire after 30 days.
 // Artist results carry the logo, which Apple can change, so they are rechecked after 30 days too.

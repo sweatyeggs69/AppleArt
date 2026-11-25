@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using AppleCore.Infrastructure;
+using AnimatedArtworks.Infrastructure;
 
 public interface IAppleMusicClient
 {

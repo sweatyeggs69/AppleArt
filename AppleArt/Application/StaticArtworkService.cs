@@ -1,10 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using AppleCore.Infrastructure;
+using AnimatedArtworks.Infrastructure;
 using Serilog;
 
-namespace AppleCore.Application;
+namespace AnimatedArtworks.Application;
 
 public class StaticArtworkService(
     IAppleMusicClient appleMusicClient,

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using Microsoft.Data.Sqlite;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 
 public sealed class SqliteDatabase
 {

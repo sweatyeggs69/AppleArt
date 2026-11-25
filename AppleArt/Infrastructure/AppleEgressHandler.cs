@@ -8,7 +8,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AppleCore.Infrastructure;
+namespace AnimatedArtworks.Infrastructure;
 
 // Every outgoing request, including each redirect hop, must target an Apple host over HTTPS.
 public sealed class AppleEgressHandler : DelegatingHandler
